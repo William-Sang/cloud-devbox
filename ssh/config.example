@@ -1,11 +1,16 @@
-# SSH 配置模板。复制到 ~/.ssh/config 并按需修改。
+# SSH 配置模板。复制到 ~/.ssh/config 或 C:\Users\<用户名>\.ssh\config 并按需修改。
 # 
 # 使用方法：
 # 1. 运行 bash scripts/setup-ssh-key.sh 生成密钥
 # 2. 在 .env 中配置 SSH_USERNAME 和 SSH_PUBLIC_KEY_FILE
 # 3. 运行 bash scripts/start-dev.sh 启动虚拟机
-# 4. 将输出的配置追加到 ~/.ssh/config
+# 4. 将下面的配置追加到 SSH config 文件中
 # 5. 使用 ssh gcp-dev 连接
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 方案 1：Linux / macOS / WSL 内使用
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 配置文件位置: ~/.ssh/config
 
 Host gcp-dev
   # 虚拟机外网 IP（启动后脚本会自动输出）
@@ -14,8 +19,8 @@ Host gcp-dev
   # SSH 用户名（与 .env 中的 SSH_USERNAME 保持一致，默认为 dev）
   User dev
   
-  # SSH 私钥路径（使用绝对路径，替换为实际项目路径）
-  IdentityFile /absolute/path/to/cloud-devbox/ssh/gcp_dev
+  # SSH 私钥路径 - 使用项目内的密钥（WSL/Linux 绝对路径）
+  IdentityFile /home/[username]/workspace/cloud-devbox/ssh/gcp_dev
   
   # 保持连接活跃
   ServerAliveInterval 60
@@ -27,4 +32,47 @@ Host gcp-dev
   # 跳过主机密钥检查（可选，首次连接时）
   # StrictHostKeyChecking no
   # UserKnownHostsFile /dev/null
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 方案 2：Windows + Cursor/VSCode 使用
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 配置文件位置: C:\Users\<你的用户名>\.ssh\config
+# 前提：需要先运行 bash scripts/sync-ssh-to-windows.sh 同步密钥
+
+Host gcp-dev
+  # 虚拟机外网 IP（启动后脚本会自动输出）
+  HostName <外网IP>
+  
+  # SSH 用户名
+  User dev
+  
+  # SSH 私钥路径 - 使用 Windows 用户目录下的密钥
+  IdentityFile C:\Users\<你的Windows用户名>\.ssh\gcp_dev
+  
+  # 保持连接活跃
+  ServerAliveInterval 60
+  ServerAliveCountMax 3
+   
+  # 只使用指定的密钥
+  IdentitiesOnly yes
+
+  # 跳过主机密钥检查（可选，首次连接时）
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 💡 提示：
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# • 方案 1 适用于：在 WSL/Linux/macOS 的终端中使用 SSH
+# • 方案 2 适用于：在 Windows 的 Cursor/VSCode 中使用 Remote-SSH
+# 
+# • 如果使用 Windows + WSL，推荐使用方案 2：
+#   1. 运行 bash scripts/sync-ssh-to-windows.sh
+#   2. 在 Windows PowerShell 中设置权限
+#   3. 使用方案 2 的配置
+#
+# • 两个配置可以同时存在于不同位置：
+#   - WSL 内: ~/.ssh/config (方案 1)
+#   - Windows: C:\Users\<用户名>\.ssh\config (方案 2)
 
