@@ -43,6 +43,36 @@
 
 ---
 
+## 📥 安装依赖
+
+### 安装 Google Cloud SDK (gcloud)
+
+**Linux / WSL:**
+
+```bash
+# 下载并安装
+curl https://sdk.cloud.google.com | bash
+
+# 重启 shell 或执行
+exec -l $SHELL
+
+# 初始化并登录
+gcloud auth login
+
+```
+
+**macOS:**
+
+```bash
+# 使用 Homebrew
+brew install --cask google-cloud-sdk
+
+# 初始化并登录
+gcloud init
+```
+
+---
+
 ## ⚡ 快速开始
 
 1. 克隆并配置环境变量
@@ -50,7 +80,7 @@
 ```bash
 git clone https://github.com/yourname/cloud-devbox.git
 cd cloud-devbox
-cp .env.example .env
+cp env.example .env
 # 编辑 .env，至少填写：GCP_PROJECT_ID、GCP_REGION、GCP_ZONE
 ```
 
@@ -106,7 +136,10 @@ bash scripts/destroy-dev.sh
 - `GCP_REGION` / `GCP_ZONE`：区域与可用区
 - `ADDRESS_NAME`：静态 IP 名称
 - `DISK_NAME` / `DISK_SIZE_GB` / `DISK_TYPE`：永久盘配置
-- `IMAGE_FAMILY` / `IMAGE_PROJECT`：自定义镜像族（可选）
+- **镜像配置（智能选择）**：
+  - `IMAGE_FAMILY` / `IMAGE_PROJECT`：自定义镜像（可选）
+  - `DEFAULT_IMAGE_FAMILY` / `DEFAULT_IMAGE_PROJECT`：默认镜像（回退）
+  - 脚本会自动检测自定义镜像是否存在，不存在则使用默认镜像
 - `SPOT_MACHINE_TYPE` / `MAX_RUN_DURATION` / `TERMINATION_ACTION`：Spot 实例与自动删除策略
 - `MOUNT_POINT` / `MOUNT_DEVICE`：数据盘挂载点与设备名
 - `NETWORK_TAGS` / `SOURCE_RANGES_SSH`：网络标签与 SSH 来源网段
@@ -119,7 +152,9 @@ bash scripts/destroy-dev.sh
 - `scripts/setup-network.sh`：创建静态 IP 与 `allow-ssh` 防火墙（幂等）
 - `scripts/start-dev.sh`：
   - 确保永久盘存在（不存在则创建）
-  - 启动 Spot 实例，自动挂载到 `${MOUNT_POINT}`，设置自动删除
+  - **智能镜像选择**：自动检测自定义镜像，不存在则回退到默认镜像
+  - 启动 Spot 实例，自动格式化并挂载数据盘到 `${MOUNT_POINT}`，设置自动删除
+  - 首次使用会自动格式化新磁盘为 ext4 文件系统
   - 输出外网 IP 与 SSH 配置指引
 - `scripts/destroy-dev.sh`：删除带有指定标签的运行中实例（默认 `devbox=yes`）
 - `scripts/build-image.sh`（可选）：
@@ -138,12 +173,38 @@ bash scripts/destroy-dev.sh
 
 ## ❓ 常见问题
 
-- 启动失败且提示镜像不存在：
-  - 填写并确认 `.env` 中 `IMAGE_FAMILY` 与 `IMAGE_PROJECT` 是否正确；或将镜像相关配置留空使用公共镜像
-- 磁盘未挂载：
+### 环境依赖问题
+
+- **`gcloud: command not found`**：
+  - 需要先安装 Google Cloud SDK，请参考上面的"📥 安装依赖"章节
+  - 安装后记得执行 `gcloud init` 和 `gcloud auth login`
+
+### 实例启动问题
+
+- **镜像选择机制**：
+  - ✅ 脚本支持智能镜像选择，无需手动修改配置
+  - 如果配置了自定义镜像，脚本会先检测是否存在
+  - 如果自定义镜像不存在或未配置，自动使用默认镜像（Debian 12）
+  - 可以通过 `DEFAULT_IMAGE_FAMILY` 和 `DEFAULT_IMAGE_PROJECT` 自定义默认镜像
+
+- **启动失败且提示镜像不存在**：
+  - 这个问题现在会自动解决，脚本会回退到默认镜像
+  - 如果仍然失败，检查 `DEFAULT_IMAGE_FAMILY` 和 `DEFAULT_IMAGE_PROJECT` 配置
+
+- **metadata 参数错误**：
+  - 已修复：现在使用 `--metadata-from-file` 代替直接传递启动脚本，避免特殊字符解析问题
+
+### 磁盘问题
+
+- **磁盘未挂载**：
   - 检查 `.env` 中 `MOUNT_DEVICE` 是否与实际一致（GCE 通常为 `/dev/sdb`）
-- 防火墙未生效：
+  - 新磁盘会自动格式化为 ext4，无需手动操作
+
+### 网络问题
+
+- **防火墙未生效**：
   - 确认实例 `--tags` 与规则 `--target-tags` 一致
+  - 检查是否先运行了 `setup-network.sh`
 
 ---
 

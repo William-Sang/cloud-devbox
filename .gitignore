@@ -1,0 +1,23 @@
+# 环境变量配置
+.env
+
+# 临时状态文件
+.state/
+
+# SSH 密钥
+ssh/*.pem
+ssh/*.key
+ssh/id_*
+!ssh/*.example
+
+# 编辑器和 IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
