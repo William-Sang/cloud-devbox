@@ -22,6 +22,7 @@
 3. 可以自定义添加 ssh pub key 用于虚拟机登录
 4. 如何解决每次需要删除 机器指纹的问题（机器每次都会重新创建）
 5. 如何解决 windows cursor 读取不到 wls 下的 ssh key 的问题
+6. 自定义镜像是否可以，默认安装 cursor server
 
 ---
 
@@ -30,13 +31,17 @@
 ```
 .
 ├── scripts/
-│   ├── setup-network.sh      # 申请静态 IP、创建防火墙
-│   ├── start-dev.sh          # 启动 Spot 开发机并挂载数据盘
-│   ├── destroy-dev.sh        # 销毁临时实例
-│   └── build-image.sh        # 构建/更新自定义镜像（可选）
+│   ├── setup-network.sh        # 申请静态 IP、创建防火墙
+│   ├── setup-ssh-key.sh        # SSH 密钥生成工具
+│   ├── sync-ssh-to-windows.sh  # 同步密钥到 Windows (新)
+│   ├── start-dev.sh            # 启动 Spot 开发机并挂载数据盘
+│   ├── destroy-dev.sh          # 销毁临时实例
+│   ├── verify-ssh-key.sh       # 验证 SSH 公钥注入
+│   └── build-image.sh          # 构建/更新自定义镜像（可选）
 ├── ssh/
-│   └── config.example        # SSH 配置模板
-├── .env.example              # 环境变量模板
+│   └── config.example          # SSH 配置模板
+├── .env.example                # 环境变量模板
+├── WINDOWS_SSH_SETUP.md        # Windows + Cursor 使用指南 (新)
 └── README.md
 ```
 
@@ -47,6 +52,8 @@
 - 已开启 GCP 计费并创建项目
 - 已安装并初始化 `gcloud`（登录并选择项目）
 - 账号具备 `Compute Admin` 权限或等价权限
+
+> 💡 **Windows + WSL 用户**: 如果在 Windows 中使用 Cursor/VSCode，请查看 [WINDOWS_SSH_SETUP.md](WINDOWS_SSH_SETUP.md) 了解如何配置 SSH 密钥
 
 ---
 
@@ -131,11 +138,13 @@ bash scripts/start-dev.sh
 6. 配置并连接 Cursor / VSCode Remote SSH
 
 ```bash
-# 将脚本输出的配置追加到 ~/.ssh/config，或参考 ssh/config.example
-# 如果使用了 setup-ssh-key.sh，配置会自动提示
-
-# 直接连接
+# Linux/macOS: 将脚本输出的配置追加到 ~/.ssh/config
 ssh gcp-dev
+
+# Windows + WSL: 需要先同步密钥到 Windows
+bash scripts/sync-ssh-to-windows.sh
+# 然后在 Cursor 中使用 Remote-SSH 连接
+# 详见 WINDOWS_SSH_SETUP.md
 
 # 或使用 gcloud（无需配置 SSH 密钥）
 gcloud compute ssh <实例名> --zone=asia-northeast1-a
@@ -181,6 +190,11 @@ bash scripts/destroy-dev.sh
   - 自动设置正确的文件权限
   - 自动输出 `.env` 配置建议
   - 提供完整的使用指引
+- `scripts/sync-ssh-to-windows.sh`：**Windows 密钥同步工具** (新增)
+  - 将 WSL 中的密钥复制到 Windows 用户目录
+  - 适用于 Windows + Cursor/VSCode 用户
+  - 自动生成 PowerShell 权限设置脚本
+  - 详见 [WINDOWS_SSH_SETUP.md](WINDOWS_SSH_SETUP.md)
 - `scripts/start-dev.sh`：
   - 确保永久盘存在（不存在则创建）
   - **智能镜像选择**：自动检测自定义镜像，不存在则回退到默认镜像
