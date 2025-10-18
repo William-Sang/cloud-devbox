@@ -33,15 +33,20 @@
 ├── scripts/
 │   ├── setup-network.sh        # 申请静态 IP、创建防火墙
 │   ├── setup-ssh-key.sh        # SSH 密钥生成工具
-│   ├── sync-ssh-to-windows.sh  # 同步密钥到 Windows (新)
+│   ├── sync-ssh-to-windows.sh  # 同步密钥到 Windows
 │   ├── start-dev.sh            # 启动 Spot 开发机并挂载数据盘
 │   ├── destroy-dev.sh          # 销毁临时实例
 │   ├── verify-ssh-key.sh       # 验证 SSH 公钥注入
-│   └── build-image.sh          # 构建/更新自定义镜像（可选）
+│   ├── build-image.sh          # 构建/更新自定义镜像
+│   └── builder-setup.sh        # Builder 自动化配置脚本
 ├── ssh/
-│   └── config.example          # SSH 配置模板
+│   ├── config.example          # SSH 配置模板
+│   ├── gcp_dev                 # SSH 私钥（gitignore）
+│   └── gcp_dev.pub             # SSH 公钥（gitignore）
+├── docs/
+│   ├── BUILDER_GUIDE.md        # Builder 自动化配置指南
+│   └── QUICK_REFERENCE.md      # 快速参考手册
 ├── .env.example                # 环境变量模板
-├── WINDOWS_SSH_SETUP.md        # Windows + Cursor 使用指南 (新)
 └── README.md
 ```
 
@@ -53,7 +58,7 @@
 - 已安装并初始化 `gcloud`（登录并选择项目）
 - 账号具备 `Compute Admin` 权限或等价权限
 
-> 💡 **Windows + WSL 用户**: 如果在 Windows 中使用 Cursor/VSCode，请查看 [WINDOWS_SSH_SETUP.md](WINDOWS_SSH_SETUP.md) 了解如何配置 SSH 密钥
+> 💡 **Windows + WSL 用户**: 如果在 Windows 中使用 Cursor/VSCode，可使用 `bash scripts/sync-ssh-to-windows.sh` 同步密钥
 
 ---
 
@@ -121,11 +126,25 @@ bash scripts/setup-network.sh
 4.（可选）制作自定义镜像（更快启动，更一致环境）
 
 ```bash
-# 第一步：创建临时构建机（SSH 进去手动安装 Node/Python/Docker 等，完成后关机）
+# 方式 A：自动化配置（推荐）
+# 创建 builder 时自动执行 scripts/builder-setup.sh
 bash scripts/build-image.sh create-builder
 
-# 第二步：从构建机磁盘产出镜像并加入镜像族
+# 等待 3-5 分钟配置完成，然后 SSH 进入关机
+gcloud compute ssh dev-builder --zone=asia-northeast1-a
+sudo poweroff
+
+# 创建镜像
 bash scripts/build-image.sh create-image
+
+# 方式 B：自定义配置
+# 1. 编辑 scripts/builder-setup.sh 添加您需要的工具
+# 2. 运行 bash scripts/build-image.sh create-builder
+# 3. 等待自动配置完成
+# 4. SSH 进入添加额外配置（可选）
+# 5. 关机并创建镜像
+
+# 详见 docs/BUILDER_GUIDE.md
 ```
 
 5. 启动临时开发机（Spot）
@@ -144,7 +163,6 @@ ssh gcp-dev
 # Windows + WSL: 需要先同步密钥到 Windows
 bash scripts/sync-ssh-to-windows.sh
 # 然后在 Cursor 中使用 Remote-SSH 连接
-# 详见 WINDOWS_SSH_SETUP.md
 
 # 或使用 gcloud（无需配置 SSH 密钥）
 gcloud compute ssh <实例名> --zone=asia-northeast1-a
@@ -190,11 +208,10 @@ bash scripts/destroy-dev.sh
   - 自动设置正确的文件权限
   - 自动输出 `.env` 配置建议
   - 提供完整的使用指引
-- `scripts/sync-ssh-to-windows.sh`：**Windows 密钥同步工具** (新增)
+- `scripts/sync-ssh-to-windows.sh`：**Windows 密钥同步工具**
   - 将 WSL 中的密钥复制到 Windows 用户目录
   - 适用于 Windows + Cursor/VSCode 用户
   - 自动生成 PowerShell 权限设置脚本
-  - 详见 [WINDOWS_SSH_SETUP.md](WINDOWS_SSH_SETUP.md)
 - `scripts/start-dev.sh`：
   - 确保永久盘存在（不存在则创建）
   - **智能镜像选择**：自动检测自定义镜像，不存在则回退到默认镜像
@@ -203,9 +220,15 @@ bash scripts/destroy-dev.sh
   - 首次使用会自动格式化新磁盘为 ext4 文件系统
   - 输出外网 IP 与 SSH 配置指引
 - `scripts/destroy-dev.sh`：删除带有指定标签的运行中实例（默认 `devbox=yes`）
-- `scripts/build-image.sh`（可选）：
-  - `create-builder`：创建构建机供你安装依赖
-  - `create-image`：从构建机磁盘创建镜像（并加入镜像族），随后可删除构建机
+- `scripts/build-image.sh`：**自定义镜像构建工具**
+  - `create-builder`：创建构建机并自动执行配置脚本
+  - `create-image`：从构建机磁盘创建镜像（并加入镜像族）
+  - `delete-builder`：删除构建机实例
+  - 配合 `scripts/builder-setup.sh` 实现自动化配置
+- `scripts/builder-setup.sh`：**Builder 配置脚本**
+  - 自动安装 Docker, Node.js, Python 等工具
+  - 可自定义添加任意依赖和配置
+  - 详见 [docs/BUILDER_GUIDE.md](docs/BUILDER_GUIDE.md)
 
 ---
 
