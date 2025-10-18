@@ -8,6 +8,8 @@
 ssh/*.pem
 ssh/*.key
 ssh/id_*
+ssh/gcp_dev
+ssh/gcp_dev.pub
 !ssh/*.example
 
 # 编辑器和 IDE

@@ -19,6 +19,9 @@
 ## TODO
 1. 输出脚本运行时长
 2. 解决默认 /workspace 没有权限的问题
+3. 可以自定义添加 ssh pub key 用于虚拟机登录
+4. 如何解决每次需要删除 机器指纹的问题（机器每次都会重新创建）
+5. 如何解决 windows cursor 读取不到 wls 下的 ssh key 的问题
 
 ---
 
@@ -88,13 +91,27 @@ cp env.example .env
 # 编辑 .env，至少填写：GCP_PROJECT_ID、GCP_REGION、GCP_ZONE
 ```
 
-2. 一次性初始化网络（静态 IP 与 SSH 防火墙）
+2. （推荐）配置 SSH 密钥，方便直接登录
+
+```bash
+# 使用辅助脚本生成密钥（推荐，会自动生成到 ssh/ 目录）
+bash scripts/setup-ssh-key.sh
+
+# 或手动生成到项目目录
+ssh-keygen -t ed25519 -f ./ssh/gcp_dev -C "dev"
+
+# 然后在 .env 中添加：
+# SSH_USERNAME=dev
+# SSH_PUBLIC_KEY_FILE=./ssh/gcp_dev.pub
+```
+
+3. 一次性初始化网络（静态 IP 与 SSH 防火墙）
 
 ```bash
 bash scripts/setup-network.sh
 ```
 
-3.（可选）制作自定义镜像（更快启动，更一致环境）
+4.（可选）制作自定义镜像（更快启动，更一致环境）
 
 ```bash
 # 第一步：创建临时构建机（SSH 进去手动安装 Node/Python/Docker 等，完成后关机）
@@ -104,27 +121,27 @@ bash scripts/build-image.sh create-builder
 bash scripts/build-image.sh create-image
 ```
 
-4. 启动临时开发机（Spot）
+5. 启动临时开发机（Spot）
 
 ```bash
 bash scripts/start-dev.sh
+# 如果配置了 SSH 密钥，脚本会自动输出 SSH 配置信息
 ```
 
-5. 配置并连接 Cursor / VSCode Remote SSH（参考 `ssh/config.example`）
+6. 配置并连接 Cursor / VSCode Remote SSH
 
 ```bash
-# ~/.ssh/config 追加：
-Host gcp-dev
-  HostName <上一步输出的外网 IP>
-  User <你的用户名>
-  IdentityFile ~/.ssh/gcp_dev
-  ServerAliveInterval 60
+# 将脚本输出的配置追加到 ~/.ssh/config，或参考 ssh/config.example
+# 如果使用了 setup-ssh-key.sh，配置会自动提示
 
-# 连接
+# 直接连接
 ssh gcp-dev
+
+# 或使用 gcloud（无需配置 SSH 密钥）
+gcloud compute ssh <实例名> --zone=asia-northeast1-a
 ```
 
-6. 用完销毁（避免账单）
+7. 用完销毁（避免账单）
 
 ```bash
 bash scripts/destroy-dev.sh
@@ -144,6 +161,11 @@ bash scripts/destroy-dev.sh
   - `IMAGE_FAMILY` / `IMAGE_PROJECT`：自定义镜像（可选）
   - `DEFAULT_IMAGE_FAMILY` / `DEFAULT_IMAGE_PROJECT`：默认镜像（回退）
   - 脚本会自动检测自定义镜像是否存在，不存在则使用默认镜像
+- **SSH 配置（推荐配置）**：
+  - `SSH_USERNAME`：SSH 登录用户名（默认为 `dev`）
+  - `SSH_PUBLIC_KEY_FILE`：SSH 公钥文件路径（推荐 `./ssh/gcp_dev.pub`）
+  - 配置后可直接通过 SSH 密钥登录，无需密码
+  - 密钥文件会自动被 `.gitignore` 排除，不会提交到 Git
 - `SPOT_MACHINE_TYPE` / `MAX_RUN_DURATION` / `TERMINATION_ACTION`：Spot 实例与自动删除策略
 - `MOUNT_POINT` / `MOUNT_DEVICE`：数据盘挂载点与设备名
 - `NETWORK_TAGS` / `SOURCE_RANGES_SSH`：网络标签与 SSH 来源网段
@@ -154,9 +176,15 @@ bash scripts/destroy-dev.sh
 ## 🧪 脚本说明
 
 - `scripts/setup-network.sh`：创建静态 IP 与 `allow-ssh` 防火墙（幂等）
+- `scripts/setup-ssh-key.sh`：**SSH 密钥生成辅助工具**
+  - 交互式生成 SSH 密钥对（默认保存到 `ssh/` 目录）
+  - 自动设置正确的文件权限
+  - 自动输出 `.env` 配置建议
+  - 提供完整的使用指引
 - `scripts/start-dev.sh`：
   - 确保永久盘存在（不存在则创建）
   - **智能镜像选择**：自动检测自定义镜像，不存在则回退到默认镜像
+  - **SSH 密钥注入**：如果配置了公钥，自动添加到实例 metadata
   - 启动 Spot 实例，自动格式化并挂载数据盘到 `${MOUNT_POINT}`，设置自动删除
   - 首次使用会自动格式化新磁盘为 ext4 文件系统
   - 输出外网 IP 与 SSH 配置指引
@@ -209,6 +237,24 @@ bash scripts/destroy-dev.sh
 - **防火墙未生效**：
   - 确认实例 `--tags` 与规则 `--target-tags` 一致
   - 检查是否先运行了 `setup-network.sh`
+
+### SSH 连接问题
+
+- **配置 SSH 密钥登录**：
+  - 使用 `bash scripts/setup-ssh-key.sh` 快速生成密钥（保存到 `ssh/` 目录）
+  - 在 `.env` 中配置 `SSH_USERNAME=dev` 和 `SSH_PUBLIC_KEY_FILE=./ssh/gcp_dev.pub`
+  - 启动实例时会自动注入公钥到虚拟机
+  - 密钥文件不会被 Git 追踪
+
+- **SSH 连接被拒绝**：
+  - 确认防火墙规则已创建：`bash scripts/setup-network.sh`
+  - 检查 SSH 用户名是否正确
+  - 使用 `gcloud compute ssh` 作为备选方案（自动管理密钥）
+
+- **使用 gcloud SSH（无需配置密钥）**：
+  ```bash
+  gcloud compute ssh <实例名> --zone=asia-northeast1-a
+  ```
 
 ---
 

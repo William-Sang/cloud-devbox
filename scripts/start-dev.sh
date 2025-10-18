@@ -37,6 +37,10 @@ LABEL_VALUE=${LABEL_VALUE:-yes}
 
 SERVICE_ACCOUNT_EMAIL=${SERVICE_ACCOUNT_EMAIL:-}
 
+# SSH 配置
+SSH_USERNAME=${SSH_USERNAME:-dev}
+SSH_PUBLIC_KEY_FILE=${SSH_PUBLIC_KEY_FILE:-}
+
 PROJECT_FLAGS=()
 if [[ -n "$GCP_PROJECT_ID" ]]; then
   PROJECT_FLAGS+=(--project "$GCP_PROJECT_ID")
@@ -139,6 +143,22 @@ fi
 
 LABELS_ARG=(--labels "${LABEL_KEY}=${LABEL_VALUE}")
 
+# 5) 准备 SSH 公钥
+SSH_KEYS_METADATA=()
+if [[ -n "$SSH_PUBLIC_KEY_FILE" ]]; then
+  # 展开 ~ 路径
+  SSH_KEY_PATH="${SSH_PUBLIC_KEY_FILE/#\~/$HOME}"
+  
+  if [[ -f "$SSH_KEY_PATH" ]]; then
+    SSH_KEY_CONTENT=$(cat "$SSH_KEY_PATH")
+    # 使用 --metadata 直接传递（转义特殊字符）
+    SSH_KEYS_METADATA+=(--metadata "ssh-keys=${SSH_USERNAME}:${SSH_KEY_CONTENT}")
+    echo "[start] 添加 SSH 公钥: $SSH_PUBLIC_KEY_FILE (用户: $SSH_USERNAME)"
+  else
+    echo "[start] 警告: SSH 公钥文件不存在: $SSH_KEY_PATH"
+  fi
+fi
+
 # 5) 创建 Spot 实例
 gcloud "${PROJECT_FLAGS[@]}" compute instances create "$INSTANCE_NAME" \
   --zone "$GCP_ZONE" \
@@ -152,6 +172,7 @@ gcloud "${PROJECT_FLAGS[@]}" compute instances create "$INSTANCE_NAME" \
   "${TAGS_ARG[@]}" \
   "${SA_ARG[@]}" \
   "${LABELS_ARG[@]}" \
+  "${SSH_KEYS_METADATA[@]}" \
   --metadata-from-file startup-script="$STARTUP_SCRIPT_FILE"
 
 # 6) 获取外网 IP 并输出连接指引
@@ -167,8 +188,8 @@ cat <<MSG
 建议在 ~/.ssh/config 添加：
 Host gcp-dev
   HostName $EXTERNAL_IP
-  User <你的用户名>
-  IdentityFile ~/.ssh/gcp_dev
+  User ${SSH_USERNAME}
+  IdentityFile ${SSH_PUBLIC_KEY_FILE%.pub}
   ServerAliveInterval 60
 
 然后使用： ssh gcp-dev
