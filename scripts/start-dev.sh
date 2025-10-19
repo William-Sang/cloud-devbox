@@ -191,7 +191,7 @@ LABELS_ARG=(--labels "${LABEL_KEY}=${LABEL_VALUE}")
 # 5) 准备 SSH 公钥
 SSH_KEYS_METADATA=()
 SSH_IDENTITY_FILE_PATH=""
-if [[ -n "$SSH_PUBLIC_KEY_FILE" ]]; then
+if [[ -n "${SSH_PUBLIC_KEY_FILE:-}" ]]; then
   SSH_KEY_PATH="$SSH_PUBLIC_KEY_FILE"
 
   case "$SSH_KEY_PATH" in
@@ -207,7 +207,7 @@ if [[ -n "$SSH_PUBLIC_KEY_FILE" ]]; then
       SSH_KEY_PATH="$ROOT_DIR/$SSH_KEY_PATH"
       ;;
   esac
-  
+
   if [[ -f "$SSH_KEY_PATH" ]]; then
     SSH_KEY_CONTENT=$(cat "$SSH_KEY_PATH")
     # 使用 --metadata 直接传递（转义特殊字符）
@@ -219,7 +219,7 @@ if [[ -n "$SSH_PUBLIC_KEY_FILE" ]]; then
     fi
     echo "[start] 添加 SSH 公钥: $SSH_PUBLIC_KEY_FILE (用户: $SSH_USERNAME)"
   else
-    echo "[start] 警告: SSH 公钥文件不存在: $SSH_KEY_PATH"
+    echo "[start] 未找到 SSH 公钥文件 ($SSH_PUBLIC_KEY_FILE)，将跳过公钥注入"
   fi
 fi
 
@@ -248,8 +248,6 @@ echo "$INSTANCE_NAME" > "$ROOT_DIR/.state/last_instance_name"
 IDENTITY_FILE_CONFIG=""
 if [[ -n "$SSH_IDENTITY_FILE_PATH" ]]; then
   IDENTITY_FILE_CONFIG="  IdentityFile $SSH_IDENTITY_FILE_PATH"
-elif [[ -n "$SSH_PUBLIC_KEY_FILE" ]]; then
-  IDENTITY_FILE_CONFIG="  IdentityFile ${SSH_PUBLIC_KEY_FILE%.pub}"
 fi
 
 cat <<MSG
