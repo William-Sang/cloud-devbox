@@ -33,22 +33,26 @@
 ```
 .
 ├── scripts/
+│   ├── build-image.sh          # 构建/更新自定义镜像
+│   ├── builder-setup.sh        # Builder 自动化配置脚本
+│   ├── destroy-dev.sh          # 销毁临时实例
 │   ├── setup-network.sh        # 申请静态 IP、创建防火墙
 │   ├── setup-ssh-key.sh        # SSH 密钥生成工具
-│   ├── sync-ssh-to-windows.sh  # 同步密钥到 Windows
 │   ├── start-dev.sh            # 启动 Spot 开发机并挂载数据盘
-│   ├── destroy-dev.sh          # 销毁临时实例
-│   ├── verify-ssh-key.sh       # 验证 SSH 公钥注入
-│   ├── build-image.sh          # 构建/更新自定义镜像
-│   └── builder-setup.sh        # Builder 自动化配置脚本
+│   ├── sync-ssh-to-windows.sh  # 同步密钥到 Windows
+│   └── verify-ssh-key.sh       # 验证 SSH 公钥注入
 ├── ssh/
 │   ├── config.example          # SSH 配置模板
 │   ├── gcp_dev                 # SSH 私钥（gitignore）
 │   └── gcp_dev.pub             # SSH 公钥（gitignore）
 ├── docs/
 │   ├── BUILDER_GUIDE.md        # Builder 自动化配置指南
-│   ├── SSH_KEY_MANAGEMENT.md   # SSH 密钥管理方案
-│   └── QUICK_REFERENCE.md      # 快速参考手册
+│   ├── BUILDER_WORKFLOW.md     # Builder 工作流程详解
+│   ├── QUICK_REFERENCE.md      # 快速参考手册
+│   └── SSH_KEY_MANAGEMENT.md   # SSH 密钥管理方案
+├── .state/                     # 运行时状态文件（自动生成，gitignore）
+│   ├── last_instance_name      # 最后创建的实例名称
+│   └── startup-script.sh       # 临时启动脚本
 ├── .env.example                # 环境变量模板
 └── README.md
 ```
