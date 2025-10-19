@@ -70,6 +70,14 @@ if [[ -n "$GCP_PROJECT_ID" ]]; then
   PROJECT_FLAGS+=(--project "$GCP_PROJECT_ID")
 fi
 
+run_gcloud() {
+  if [[ ${#PROJECT_FLAGS[@]} -gt 0 ]]; then
+    gcloud "${PROJECT_FLAGS[@]}" "$@"
+  else
+    gcloud "$@"
+  fi
+}
+
 timestamp=$(date +%Y%m%d-%H%M%S)
 INSTANCE_NAME=${SPOT_INSTANCE_NAME:-dev-spot-$timestamp}
 
@@ -78,16 +86,16 @@ mkdir -p "$ROOT_DIR/.state"
 echo "[start] zone=$GCP_ZONE instance=$INSTANCE_NAME"
 
 # 0) 确认静态 IP 存在
-gcloud "${PROJECT_FLAGS[@]}" compute addresses describe "$ADDRESS_NAME" --region "$GCP_REGION" >/dev/null 2>&1 || {
+run_gcloud compute addresses describe "$ADDRESS_NAME" --region "$GCP_REGION" >/dev/null 2>&1 || {
   echo "[start] static address '$ADDRESS_NAME' not found in $GCP_REGION. Run scripts/setup-network.sh first." >&2
   exit 1
 }
 
 # 1) 准备永久磁盘（不存在则创建）
-if gcloud "${PROJECT_FLAGS[@]}" compute disks describe "$DISK_NAME" --zone "$GCP_ZONE" >/dev/null 2>&1; then
+if run_gcloud compute disks describe "$DISK_NAME" --zone "$GCP_ZONE" >/dev/null 2>&1; then
   echo "[start] disk '$DISK_NAME' exists"
 else
-  gcloud "${PROJECT_FLAGS[@]}" compute disks create "$DISK_NAME" \
+  run_gcloud compute disks create "$DISK_NAME" \
     --size="${DISK_SIZE_GB}GB" \
     --type="$DISK_TYPE" \
     --zone "$GCP_ZONE"
@@ -102,7 +110,7 @@ FINAL_IMAGE_PROJECT=""
 if [[ -n "$IMAGE_FAMILY" && -n "$IMAGE_PROJECT" ]]; then
   # 检测自定义镜像是否存在
   echo "[start] 检测自定义镜像: $IMAGE_FAMILY (项目: $IMAGE_PROJECT)"
-  if gcloud "${PROJECT_FLAGS[@]}" compute images describe-from-family "$IMAGE_FAMILY" \
+  if run_gcloud compute images describe-from-family "$IMAGE_FAMILY" \
        --project "$IMAGE_PROJECT" >/dev/null 2>&1; then
     echo "[start] ✓ 找到自定义镜像，使用: $IMAGE_FAMILY"
     FINAL_IMAGE_FAMILY="$IMAGE_FAMILY"
@@ -224,23 +232,42 @@ if [[ -n "${SSH_PUBLIC_KEY_FILE:-}" ]]; then
 fi
 
 # 5) 创建 Spot 实例
-gcloud "${PROJECT_FLAGS[@]}" compute instances create "$INSTANCE_NAME" \
-  --zone "$GCP_ZONE" \
-  --machine-type "$SPOT_MACHINE_TYPE" \
-  "${IMAGE_FLAGS[@]}" \
-  --address "$ADDRESS_NAME" \
-  --disk name="$DISK_NAME",mode=rw,boot=no,auto-delete=no \
-  --provisioning-model=SPOT \
-  --instance-termination-action="$TERMINATION_ACTION" \
-  --max-run-duration="$MAX_RUN_DURATION" \
-  "${TAGS_ARG[@]}" \
-  "${SA_ARG[@]}" \
-  "${LABELS_ARG[@]}" \
-  "${SSH_KEYS_METADATA[@]}" \
-  --metadata-from-file startup-script="$STARTUP_SCRIPT_FILE"
+GCLOUD_INSTANCE_CREATE_ARGS=(
+  --zone "$GCP_ZONE"
+  --machine-type "$SPOT_MACHINE_TYPE"
+  --address "$ADDRESS_NAME"
+  --disk name="$DISK_NAME",mode=rw,boot=no,auto-delete=no
+  --provisioning-model=SPOT
+  --instance-termination-action="$TERMINATION_ACTION"
+  --max-run-duration="$MAX_RUN_DURATION"
+)
+
+if [[ ${#IMAGE_FLAGS[@]} -gt 0 ]]; then
+  GCLOUD_INSTANCE_CREATE_ARGS+=("${IMAGE_FLAGS[@]}")
+fi
+
+if [[ ${#TAGS_ARG[@]} -gt 0 ]]; then
+  GCLOUD_INSTANCE_CREATE_ARGS+=("${TAGS_ARG[@]}")
+fi
+
+if [[ ${#SA_ARG[@]} -gt 0 ]]; then
+  GCLOUD_INSTANCE_CREATE_ARGS+=("${SA_ARG[@]}")
+fi
+
+if [[ ${#LABELS_ARG[@]} -gt 0 ]]; then
+  GCLOUD_INSTANCE_CREATE_ARGS+=("${LABELS_ARG[@]}")
+fi
+
+if [[ ${#SSH_KEYS_METADATA[@]} -gt 0 ]]; then
+  GCLOUD_INSTANCE_CREATE_ARGS+=("${SSH_KEYS_METADATA[@]}")
+fi
+
+GCLOUD_INSTANCE_CREATE_ARGS+=(--metadata-from-file "startup-script=$STARTUP_SCRIPT_FILE")
+
+run_gcloud compute instances create "$INSTANCE_NAME" "${GCLOUD_INSTANCE_CREATE_ARGS[@]}"
 
 # 6) 获取外网 IP 并输出连接指引
-EXTERNAL_IP=$(gcloud "${PROJECT_FLAGS[@]}" compute instances describe "$INSTANCE_NAME" --zone "$GCP_ZONE" \
+EXTERNAL_IP=$(run_gcloud compute instances describe "$INSTANCE_NAME" --zone "$GCP_ZONE" \
   --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
 
 echo "$INSTANCE_NAME" > "$ROOT_DIR/.state/last_instance_name"
