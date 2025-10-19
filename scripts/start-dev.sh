@@ -123,7 +123,7 @@ IMAGE_FLAGS+=(--image-family "$FINAL_IMAGE_FAMILY" --image-project "$FINAL_IMAGE
 
 # 3) 启动脚本（在实例内部执行）
 STARTUP_SCRIPT_FILE="$ROOT_DIR/.state/startup-script.sh"
-cat > "$STARTUP_SCRIPT_FILE" <<'EOF'
+cat > "$STARTUP_SCRIPT_FILE" <<EOF
 #!/bin/bash
 set -e
 
@@ -137,13 +137,13 @@ fi
 mkdir -p ${MOUNT_POINT}
 
 # 如果未挂载则挂载
-if ! grep -qs '${MOUNT_POINT}' /proc/mounts; then
+if ! grep -qs "${MOUNT_POINT}" /proc/mounts; then
   mount -o discard,defaults ${MOUNT_DEVICE} ${MOUNT_POINT}
 fi
 
 # 添加到 fstab（如果还没有）
-if ! grep -qs '${MOUNT_POINT}' /etc/fstab; then
-  echo '${MOUNT_DEVICE} ${MOUNT_POINT} ext4 discard,defaults,nofail 0 2' >> /etc/fstab
+if ! grep -qs "${MOUNT_POINT}" /etc/fstab; then
+  echo "${MOUNT_DEVICE} ${MOUNT_POINT} ext4 discard,defaults,nofail 0 2" >> /etc/fstab
 fi
 
 # 设置工作目录权限（确保属于配置的用户）
@@ -174,11 +174,6 @@ cat > /etc/motd <<MOTD
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 MOTD
 EOF
-
-# 替换脚本中的变量
-sed -i "s|\${MOUNT_POINT}|${MOUNT_POINT}|g" "$STARTUP_SCRIPT_FILE"
-sed -i "s|\${MOUNT_DEVICE}|${MOUNT_DEVICE}|g" "$STARTUP_SCRIPT_FILE"
-sed -i "s|\${SSH_USERNAME}|${SSH_USERNAME}|g" "$STARTUP_SCRIPT_FILE"
 
 # 4) 组装通用参数
 TAGS_ARG=()
