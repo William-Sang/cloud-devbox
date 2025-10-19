@@ -5,6 +5,30 @@
 
 set -euo pipefail
 
+# 记录脚本开始时间
+SCRIPT_START_TIME=$(date +%s)
+SCRIPT_NAME=$(basename "$0")
+
+# 在脚本退出时显示运行时长
+cleanup_and_show_duration() {
+  local exit_code=$?
+  local end_time=$(date +%s)
+  local duration=$((end_time - SCRIPT_START_TIME))
+  local minutes=$((duration / 60))
+  local seconds=$((duration % 60))
+  
+  echo ""
+  if [ $minutes -gt 0 ]; then
+    echo "[$SCRIPT_NAME] 运行时长: ${minutes}m ${seconds}s"
+  else
+    echo "[$SCRIPT_NAME] 运行时长: ${seconds}s"
+  fi
+  
+  exit $exit_code
+}
+
+trap cleanup_and_show_duration EXIT
+
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🚀 开始配置 Builder 实例"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
