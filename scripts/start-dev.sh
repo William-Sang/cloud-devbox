@@ -190,14 +190,33 @@ LABELS_ARG=(--labels "${LABEL_KEY}=${LABEL_VALUE}")
 
 # 5) 准备 SSH 公钥
 SSH_KEYS_METADATA=()
+SSH_IDENTITY_FILE_PATH=""
 if [[ -n "$SSH_PUBLIC_KEY_FILE" ]]; then
-  # 展开 ~ 路径
-  SSH_KEY_PATH="${SSH_PUBLIC_KEY_FILE/#\~/$HOME}"
+  SSH_KEY_PATH="$SSH_PUBLIC_KEY_FILE"
+
+  case "$SSH_KEY_PATH" in
+    ~*)
+      SSH_KEY_PATH="${SSH_KEY_PATH/#\~/$HOME}"
+      ;;
+    /*)
+      ;;
+    ./*)
+      SSH_KEY_PATH="$ROOT_DIR/${SSH_KEY_PATH#./}"
+      ;;
+    *)
+      SSH_KEY_PATH="$ROOT_DIR/$SSH_KEY_PATH"
+      ;;
+  esac
   
   if [[ -f "$SSH_KEY_PATH" ]]; then
     SSH_KEY_CONTENT=$(cat "$SSH_KEY_PATH")
     # 使用 --metadata 直接传递（转义特殊字符）
     SSH_KEYS_METADATA+=(--metadata "ssh-keys=${SSH_USERNAME}:${SSH_KEY_CONTENT}")
+    if [[ "$SSH_KEY_PATH" == *.pub ]]; then
+      SSH_IDENTITY_FILE_PATH="${SSH_KEY_PATH%.pub}"
+    else
+      SSH_IDENTITY_FILE_PATH="$SSH_KEY_PATH"
+    fi
     echo "[start] 添加 SSH 公钥: $SSH_PUBLIC_KEY_FILE (用户: $SSH_USERNAME)"
   else
     echo "[start] 警告: SSH 公钥文件不存在: $SSH_KEY_PATH"
@@ -226,6 +245,13 @@ EXTERNAL_IP=$(gcloud "${PROJECT_FLAGS[@]}" compute instances describe "$INSTANCE
 
 echo "$INSTANCE_NAME" > "$ROOT_DIR/.state/last_instance_name"
 
+IDENTITY_FILE_CONFIG=""
+if [[ -n "$SSH_IDENTITY_FILE_PATH" ]]; then
+  IDENTITY_FILE_CONFIG="  IdentityFile $SSH_IDENTITY_FILE_PATH"
+elif [[ -n "$SSH_PUBLIC_KEY_FILE" ]]; then
+  IDENTITY_FILE_CONFIG="  IdentityFile ${SSH_PUBLIC_KEY_FILE%.pub}"
+fi
+
 cat <<MSG
 [start] done
 外网 IP: $EXTERNAL_IP
@@ -234,11 +260,10 @@ cat <<MSG
 Host gcp-dev
   HostName $EXTERNAL_IP
   User ${SSH_USERNAME}
-  IdentityFile ${SSH_PUBLIC_KEY_FILE%.pub}
+${IDENTITY_FILE_CONFIG}
   ServerAliveInterval 60
 
 然后使用： ssh gcp-dev
 工作目录： ${MOUNT_POINT}
 自动删除： ${MAX_RUN_DURATION} 后，动作为 ${TERMINATION_ACTION}
 MSG
-

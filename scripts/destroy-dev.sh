@@ -54,19 +54,19 @@ if [[ -n "$TARGET_INSTANCE" ]]; then
 fi
 
 echo "[destroy] no explicit instance specified, deleting labeled instances"
-mapfile -t INSTANCES < <(gcloud "${PROJECT_FLAGS[@]}" compute instances list \
+INSTANCE_LIST=$(gcloud "${PROJECT_FLAGS[@]}" compute instances list \
   --filter="labels.${LABEL_KEY}=${LABEL_VALUE} AND status~'RUNNING|PROVISIONING'" \
   --format='get(name)')
 
-if (( ${#INSTANCES[@]} == 0 )); then
+if [[ -z "${INSTANCE_LIST//[[:space:]]/}" ]]; then
   echo "[destroy] nothing to delete"
   exit 0
 fi
 
-for name in "${INSTANCES[@]}"; do
+while IFS= read -r name; do
+  [[ -z "$name" ]] && continue
   echo "[destroy] deleting $name"
   gcloud "${PROJECT_FLAGS[@]}" compute instances delete "$name" --zone "$GCP_ZONE" --quiet || true
-done
+done <<< "$INSTANCE_LIST"
 
 echo "[destroy] done"
-
