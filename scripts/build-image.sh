@@ -44,6 +44,9 @@ BASE_IMAGE_PROJECT=${BASE_IMAGE_PROJECT:-debian-cloud}
 
 IMAGE_FAMILY=${IMAGE_FAMILY:-dev-gold}
 
+# SSH 配置（用于创建统一用户）
+SSH_USERNAME=${SSH_USERNAME:-dev}
+
 PROJECT_FLAGS=()
 if [[ -n "$GCP_PROJECT_ID" ]]; then
   PROJECT_FLAGS+=(--project "$GCP_PROJECT_ID")
@@ -112,11 +115,12 @@ EOF
     
     echo "[image] 正在创建实例并传入脚本..."
     
-    # 创建实例，通过 metadata 传入脚本
+    # 创建实例，通过 metadata 传入脚本和用户名
     gcloud "${PROJECT_FLAGS[@]}" compute instances create "$BUILDER_INSTANCE_NAME" \
       --zone "$GCP_ZONE" \
       --machine-type "$BUILDER_MACHINE_TYPE" \
       --image-family "$BASE_IMAGE_FAMILY" --image-project "$BASE_IMAGE_PROJECT" \
+      --metadata builder-username="$SSH_USERNAME" \
       --metadata-from-file startup-script="$TEMP_INIT_SCRIPT",builder-script="$BUILDER_SETUP_SCRIPT"
     
     # 清理临时文件
@@ -129,6 +133,7 @@ EOF
     echo ""
     echo "实例名称: $BUILDER_INSTANCE_NAME"
     echo "区域:     $GCP_ZONE"
+    echo "配置用户: $SSH_USERNAME"
     echo ""
     echo "📝 脚本已通过 metadata 传入实例 (~/builder-setup.sh)"
     echo ""

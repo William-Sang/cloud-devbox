@@ -10,14 +10,37 @@ echo "🚀 开始配置 Builder 实例"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
+# 从 metadata 获取目标用户名
+TARGET_USER=$(curl -sf -H "Metadata-Flavor: Google" \
+  "http://metadata.google.internal/computeMetadata/v1/instance/attributes/builder-username" || echo "dev")
+
+echo "配置目标用户: $TARGET_USER"
+echo ""
+
+# 创建用户（如果不存在）
+if ! id "$TARGET_USER" &>/dev/null; then
+  echo "创建用户 $TARGET_USER..."
+  useradd -m -s /bin/bash "$TARGET_USER"
+  echo "✓ 用户已创建"
+else
+  echo "✓ 用户已存在: $TARGET_USER"
+fi
+
+# 配置 sudo 权限（免密）
+echo "配置 sudo 权限..."
+echo "$TARGET_USER ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/$TARGET_USER
+chmod 0440 /etc/sudoers.d/$TARGET_USER
+echo "✓ sudo 权限已配置（免密）"
+echo ""
+
 # 更新系统
-echo "[1/6] 更新系统包..."
+echo "[1/7] 更新系统包..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get upgrade -y -qq
 
 # 安装基础工具
-echo "[2/6] 安装基础工具..."
+echo "[2/7] 安装基础工具..."
 apt-get install -y -qq \
   curl \
   wget \
@@ -31,7 +54,7 @@ apt-get install -y -qq \
   lsb-release
 
 # 安装 Docker
-echo "[3/6] 安装 Docker..."
+echo "[3/7] 安装 Docker..."
 if ! command -v docker &> /dev/null; then
   # 检测操作系统类型
   . /etc/os-release
@@ -71,7 +94,7 @@ else
 fi
 
 # 安装 mise (统一版本管理器)
-echo "[4/6] 安装 mise 版本管理器..."
+echo "[4/7] 安装 mise 版本管理器..."
 if ! command -v mise &> /dev/null; then
   # 安装 mise
   curl https://mise.run | sh
@@ -91,7 +114,7 @@ else
 fi
 
 # 使用 mise 安装 Node.js 和 Python
-echo "[5/6] 使用 mise 安装 Node.js 和 Python..."
+echo "[5/7] 使用 mise 安装 Node.js 和 Python..."
 export PATH="$HOME/.local/bin:$PATH"
 eval "$(~/.local/bin/mise activate bash)"
 
@@ -117,128 +140,100 @@ echo "✓ pip 版本: $(pip --version)"
 pip install --quiet --upgrade pip setuptools wheel
 
 # 配置用户环境
-echo "[6/6] 配置环境..."
+echo "[6/7] 配置 Docker 权限和环境..."
 
-# 创建工作目录
-mkdir -p /workspace
-chmod 755 /workspace
-
-# 配置 Docker 权限（允许非 root 用户使用）
+# 配置 Docker 权限（允许目标用户使用）
 if getent group docker > /dev/null 2>&1; then
-  # 获取默认用户（通常是创建实例时的用户）
-  DEFAULT_USER=$(ls /home | head -n 1)
-  if [[ -n "$DEFAULT_USER" ]]; then
-    usermod -aG docker "$DEFAULT_USER" || true
-  fi
+  usermod -aG docker "$TARGET_USER" || true
+  echo "✓ $TARGET_USER 已添加到 docker 组"
 fi
 
-# 配置 mise 自动激活
+# 配置 mise 自动激活（全局和用户级别）
 echo 'eval "$(mise activate bash)"' >> /etc/bash.bashrc
-if [[ -n "$DEFAULT_USER" ]] && [[ -f "/home/$DEFAULT_USER/.bashrc" ]]; then
-  echo 'eval "$(mise activate bash)"' >> "/home/$DEFAULT_USER/.bashrc"
+if [[ -f "/home/$TARGET_USER/.bashrc" ]]; then
+  echo 'eval "$(mise activate bash)"' >> "/home/$TARGET_USER/.bashrc"
+  echo "✓ mise 自动激活已配置"
 fi
 
-# 为默认用户也安装 Node 和 Python
-if [[ -n "$DEFAULT_USER" ]]; then
-  echo "为 $DEFAULT_USER 用户配置 Node 和 Python..."
-  sudo -u "$DEFAULT_USER" bash <<'USERSCRIPT'
+# 为目标用户安装 Node 和 Python
+echo "为 $TARGET_USER 用户安装 Node.js 和 Python..."
+sudo -u "$TARGET_USER" bash <<USERSCRIPT
   # 确保 mise 在 PATH 中
-  export PATH="/usr/local/bin:$PATH"
+  export PATH="/usr/local/bin:\$PATH"
   
   # 配置 mise
-  eval "$(mise activate bash 2>/dev/null || true)"
+  eval "\$(mise activate bash 2>/dev/null || true)"
   
   # 安装 Node 和 Python
-  mise use --global node@lts 2>/dev/null || echo "  ⚠️  Node:使用 root 配置"
-  mise use --global python@3.12 2>/dev/null || echo "  ⚠️  Python:使用 root 配置"
+  mise use --global node@lts 2>/dev/null || echo "  ⚠️  Node: 将使用 root 配置"
+  mise use --global python@3.12 2>/dev/null || echo "  ⚠️  Python: 将使用 root 配置"
   
-  echo "  ✓ mise 配置完成"
+  echo "  ✓ $TARGET_USER 的 mise 配置完成"
 USERSCRIPT
-fi
 
 # 安装 amix/vimrc 配置
-echo "配置 Vim (amix/vimrc)..."
-# 为 root 用户安装
-if [[ ! -d ~/.vim_runtime ]]; then
-  git clone --depth=1 https://github.com/amix/vimrc.git ~/.vim_runtime
-  sh ~/.vim_runtime/install_awesome_vimrc.sh > /dev/null 2>&1
-  echo "✓ Vim 配置完成 (root)"
-fi
-
-# 为默认用户安装
-if [[ -n "$DEFAULT_USER" ]]; then
-  sudo -u "$DEFAULT_USER" bash -c '
-    if [[ ! -d ~/.vim_runtime ]]; then
-      git clone --depth=1 https://github.com/amix/vimrc.git ~/.vim_runtime
-      sh ~/.vim_runtime/install_awesome_vimrc.sh > /dev/null 2>&1
-      echo "✓ Vim 配置完成 ('"$DEFAULT_USER"')"
-    fi
-  '
-fi
+echo "[7/7] 配置 Git、SSH 和 Vim..."
+echo "  • 配置 Vim (amix/vimrc)..."
+# 为目标用户安装
+sudo -u "$TARGET_USER" bash -c '
+  if [[ ! -d ~/.vim_runtime ]]; then
+    git clone --depth=1 https://github.com/amix/vimrc.git ~/.vim_runtime
+    sh ~/.vim_runtime/install_awesome_vimrc.sh > /dev/null 2>&1
+    echo "    ✓ Vim 配置完成"
+  fi
+'
 
 # 配置 Git
-echo "配置 Git..."
-git config --global user.name "willliam.sang"
-git config --global user.email "sang.williams@gmail.com"
-git config --global init.defaultBranch main
-git config --global core.editor vim
-
-# 为默认用户配置 Git
-if [[ -n "$DEFAULT_USER" ]]; then
-  sudo -u "$DEFAULT_USER" bash -c '
-    git config --global user.name "willliam.sang"
-    git config --global user.email "sang.williams@gmail.com"
-    git config --global init.defaultBranch main
-    git config --global core.editor vim
-  '
-fi
-echo "✓ Git 配置完成"
+echo "  • 配置 Git..."
+sudo -u "$TARGET_USER" bash -c '
+  git config --global user.name "willliam.sang"
+  git config --global user.email "sang.williams@gmail.com"
+  git config --global init.defaultBranch main
+  git config --global core.editor vim
+'
+echo "    ✓ Git 配置完成"
 
 # 生成 SSH 密钥
-echo "生成 SSH 密钥..."
-# 为 root 用户生成
-if [[ ! -f ~/.ssh/id_ed25519 ]]; then
-  mkdir -p ~/.ssh
-  chmod 700 ~/.ssh
-  ssh-keygen -t ed25519 -C "gcp-dev-machine" -f ~/.ssh/id_ed25519 -N ""
-  echo "✓ SSH 密钥生成完成 (root)"
-  echo "  公钥位置: ~/.ssh/id_ed25519.pub"
-fi
+echo "  • 生成 SSH 密钥..."
+sudo -u "$TARGET_USER" bash -c '
+  if [[ ! -f ~/.ssh/id_ed25519 ]]; then
+    mkdir -p ~/.ssh
+    chmod 700 ~/.ssh
+    ssh-keygen -t ed25519 -C "gcp-dev-machine" -f ~/.ssh/id_ed25519 -N ""
+    echo "    ✓ SSH 密钥已生成"
+  fi
+'
 
-# 为默认用户生成
-if [[ -n "$DEFAULT_USER" ]]; then
-  sudo -u "$DEFAULT_USER" bash -c '
-    if [[ ! -f ~/.ssh/id_ed25519 ]]; then
-      mkdir -p ~/.ssh
-      chmod 700 ~/.ssh
-      ssh-keygen -t ed25519 -C "gcp-dev-machine" -f ~/.ssh/id_ed25519 -N ""
-      echo "✓ SSH 密钥生成完成 ('"$DEFAULT_USER"')"
-      echo "  公钥位置: ~/.ssh/id_ed25519.pub"
-    fi
-  '
-fi
+# 创建并配置工作目录
+echo "  • 配置工作目录..."
+mkdir -p /workspace
+chown $TARGET_USER:$TARGET_USER /workspace
+chmod 755 /workspace
+echo "    ✓ /workspace 目录已创建并设置权限"
 
-# 设置欢迎消息
-cat > /etc/motd <<'EOF'
+# 设置欢迎消息（注入用户名）
+cat > /etc/motd <<EOF
 ╔══════════════════════════════════════════════════════════════╗
 ║            🛠️  GCE Builder 实例                              ║
 ╚══════════════════════════════════════════════════════════════╝
 
+配置用户: $TARGET_USER
+
 已安装的工具：
   • mise:    版本管理器 (node, python)
-  • Docker:  $(docker --version 2>/dev/null || echo "未安装")
-  • Node.js: $(node --version 2>/dev/null || echo "未安装")
-  • Python:  $(python --version 2>/dev/null || echo "未安装")
-  • Git:     $(git --version 2>/dev/null || echo "未安装")
+  • Docker:  已安装，$TARGET_USER 用户可直接使用
+  • Node.js: LTS 版本
+  • Python:  3.12
+  • Git:     已配置
   • Vim:     amix/vimrc (已配置)
 
-工作目录: /workspace
+工作目录: /workspace (属于 $TARGET_USER)
 
 Git 配置:
   • 用户名: willliam.sang
   • 邮箱:   sang.williams@gmail.com
 
-SSH 密钥: ~/.ssh/id_ed25519.pub
+SSH 密钥: /home/$TARGET_USER/.ssh/id_ed25519.pub
 
 mise 使用:
   • mise use node@20 python@3.11  # 设置项目版本
@@ -292,6 +287,8 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "✅ Builder 配置完成"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
+echo "配置用户: $TARGET_USER (sudo 权限已启用)"
+echo ""
 echo "已安装："
 echo "  • mise:    $(mise --version)"
 echo "  • Docker:  $(docker --version)"
@@ -306,18 +303,18 @@ echo "  • 用户名: willliam.sang"
 echo "  • 邮箱:   sang.williams@gmail.com"
 echo ""
 echo "SSH 密钥已生成："
-if [[ -f ~/.ssh/id_ed25519.pub ]]; then
-  echo "  Root 用户公钥:"
-  echo "  $(cat ~/.ssh/id_ed25519.pub)"
+if [[ -f "/home/$TARGET_USER/.ssh/id_ed25519.pub" ]]; then
+  echo "  $TARGET_USER 用户公钥:"
+  echo "  $(cat /home/$TARGET_USER/.ssh/id_ed25519.pub)"
 fi
-if [[ -n "$DEFAULT_USER" ]] && [[ -f "/home/$DEFAULT_USER/.ssh/id_ed25519.pub" ]]; then
-  echo ""
-  echo "  $DEFAULT_USER 用户公钥:"
-  echo "  $(cat /home/$DEFAULT_USER/.ssh/id_ed25519.pub)"
-fi
+echo ""
+echo "工作目录："
+echo "  • /workspace (属于 $TARGET_USER:$TARGET_USER)"
 echo ""
 echo "提示："
 echo "  • mise 已配置为自动激活（重新登录后生效）"
+echo "  • 所有工具已为 $TARGET_USER 用户配置完成"
+echo "  • Docker 可直接使用，无需 sudo"
 echo "  • 如需手动添加配置，可以 SSH 进入实例"
 echo "  • 配置完成后运行: sudo poweroff"
 echo "  • 然后创建镜像: bash scripts/build-image.sh create-image"

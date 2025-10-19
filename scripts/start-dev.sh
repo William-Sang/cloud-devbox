@@ -122,13 +122,39 @@ if ! grep -qs '${MOUNT_POINT}' /etc/fstab; then
   echo '${MOUNT_DEVICE} ${MOUNT_POINT} ext4 discard,defaults,nofail 0 2' >> /etc/fstab
 fi
 
+# 设置工作目录权限（确保属于配置的用户）
+if id "${SSH_USERNAME}" &>/dev/null; then
+  chown -R ${SSH_USERNAME}:${SSH_USERNAME} ${MOUNT_POINT}
+  chmod 755 ${MOUNT_POINT}
+  echo "✓ ${MOUNT_POINT} 所有者已设置为 ${SSH_USERNAME}"
+fi
+
 # 设置欢迎信息
-echo '💻 开发机已准备好，工作目录 ${MOUNT_POINT}' > /etc/motd
+cat > /etc/motd <<MOTD
+╔══════════════════════════════════════════════════════════════╗
+║            💻  GCP 开发机                                    ║
+╚══════════════════════════════════════════════════════════════╝
+
+工作目录: ${MOUNT_POINT} (属于 ${SSH_USERNAME})
+登录用户: ${SSH_USERNAME}
+
+已安装工具：
+  • Docker、Git、Vim (amix/vimrc)
+  • mise (Node.js LTS, Python 3.12)
+
+使用提示：
+  • 所有工具已为 ${SSH_USERNAME} 用户配置完成
+  • Docker 可直接使用，无需 sudo
+  • mise 已自动激活
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MOTD
 EOF
 
 # 替换脚本中的变量
 sed -i "s|\${MOUNT_POINT}|${MOUNT_POINT}|g" "$STARTUP_SCRIPT_FILE"
 sed -i "s|\${MOUNT_DEVICE}|${MOUNT_DEVICE}|g" "$STARTUP_SCRIPT_FILE"
+sed -i "s|\${SSH_USERNAME}|${SSH_USERNAME}|g" "$STARTUP_SCRIPT_FILE"
 
 # 4) 组装通用参数
 TAGS_ARG=()
