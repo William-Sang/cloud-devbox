@@ -284,6 +284,94 @@ EOF
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "[8/8] 清理缓存和临时文件..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+# 1. 清理 APT 包管理器缓存
+echo "  • 清理 APT 缓存..."
+apt-get clean
+apt-get autoremove -y -qq
+rm -rf /var/lib/apt/lists/*
+echo "    ✓ APT 缓存已清理"
+
+# 2. 清理 Python/pip 缓存
+echo "  • 清理 pip 缓存..."
+# 清理 root 用户的 pip 缓存
+pip cache purge 2>/dev/null || true
+rm -rf ~/.cache/pip 2>/dev/null || true
+# 清理目标用户的 pip 缓存
+sudo -u "$TARGET_USER" bash -c 'pip cache purge 2>/dev/null || true'
+sudo -u "$TARGET_USER" bash -c 'rm -rf ~/.cache/pip 2>/dev/null || true'
+echo "    ✓ pip 缓存已清理"
+
+# 3. 清理 Node.js/npm 缓存
+echo "  • 清理 npm 缓存..."
+# 清理 root 用户的 npm 缓存
+npm cache clean --force 2>/dev/null || true
+# 清理目标用户的 npm 缓存
+sudo -u "$TARGET_USER" bash -c 'npm cache clean --force 2>/dev/null || true'
+echo "    ✓ npm 缓存已清理"
+
+# 4. 清理 mise 缓存
+echo "  • 清理 mise 缓存..."
+# 清理 root 用户的 mise 缓存
+rm -rf ~/.local/share/mise/downloads/* 2>/dev/null || true
+rm -rf ~/.local/share/mise/installs/*/downloads 2>/dev/null || true
+# 清理目标用户的 mise 缓存
+sudo -u "$TARGET_USER" bash -c 'rm -rf ~/.local/share/mise/downloads/* 2>/dev/null || true'
+sudo -u "$TARGET_USER" bash -c 'rm -rf ~/.local/share/mise/installs/*/downloads 2>/dev/null || true'
+echo "    ✓ mise 缓存已清理"
+
+# 5. 清理系统临时文件和日志
+echo "  • 清理系统临时文件..."
+rm -rf /tmp/* 2>/dev/null || true
+rm -rf /var/tmp/* 2>/dev/null || true
+# 清理日志但保留目录结构
+find /var/log -type f -name "*.log" -delete 2>/dev/null || true
+find /var/log -type f -name "*.gz" -delete 2>/dev/null || true
+find /var/log -type f -name "*.old" -delete 2>/dev/null || true
+truncate -s 0 /var/log/lastlog 2>/dev/null || true
+truncate -s 0 /var/log/wtmp 2>/dev/null || true
+truncate -s 0 /var/log/btmp 2>/dev/null || true
+echo "    ✓ 临时文件和日志已清理"
+
+# 6. 清理 Shell 历史
+echo "  • 清理 Shell 历史..."
+rm -f ~/.bash_history 2>/dev/null || true
+sudo -u "$TARGET_USER" bash -c 'rm -f ~/.bash_history 2>/dev/null || true'
+# 清空当前会话历史
+history -c 2>/dev/null || true
+echo "    ✓ Shell 历史已清理"
+
+# 7. 清理 Git 仓库缓存（保留文件）
+echo "  • 清理 Git 仓库缓存..."
+# 清理 vim runtime 的 git 历史
+if [[ -d ~/.vim_runtime/.git ]]; then
+  rm -rf ~/.vim_runtime/.git
+fi
+if [[ -d /home/$TARGET_USER/.vim_runtime/.git ]]; then
+  rm -rf /home/$TARGET_USER/.vim_runtime/.git
+fi
+echo "    ✓ Git 仓库缓存已清理"
+
+# 8. 清理其他缓存
+echo "  • 清理其他缓存..."
+# 清理 Docker 构建缓存（如果有）
+docker system prune -af 2>/dev/null || true
+# 清理 systemd journal 日志
+journalctl --vacuum-time=1d 2>/dev/null || true
+# 清理用户缓存目录
+rm -rf ~/.cache/* 2>/dev/null || true
+sudo -u "$TARGET_USER" bash -c 'rm -rf ~/.cache/* 2>/dev/null || true'
+echo "    ✓ 其他缓存已清理"
+
+echo ""
+echo "✅ 缓存清理完成，镜像已优化"
+echo ""
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "✅ Builder 配置完成"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
