@@ -33,15 +33,28 @@ apt-get install -y -qq \
 # 安装 Docker
 echo "[3/6] 安装 Docker..."
 if ! command -v docker &> /dev/null; then
+  # 检测操作系统类型
+  . /etc/os-release
+  if [[ "$ID" == "ubuntu" ]]; then
+    DOCKER_OS="ubuntu"
+  elif [[ "$ID" == "debian" ]]; then
+    DOCKER_OS="debian"
+  else
+    echo "⚠️  未识别的操作系统: $ID，尝试使用 ubuntu"
+    DOCKER_OS="ubuntu"
+  fi
+  
+  echo "检测到系统: $ID $VERSION_CODENAME"
+  
   # 添加 Docker 官方 GPG key
   install -m 0755 -d /etc/apt/keyrings
-  curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  curl -fsSL https://download.docker.com/linux/${DOCKER_OS}/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
   chmod a+r /etc/apt/keyrings/docker.gpg
 
   # 添加 Docker 仓库
   echo \
-    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
-    $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/${DOCKER_OS} \
+    $VERSION_CODENAME stable" | \
     tee /etc/apt/sources.list.d/docker.list > /dev/null
 
   # 安装 Docker Engine
@@ -83,12 +96,20 @@ export PATH="$HOME/.local/bin:$PATH"
 eval "$(~/.local/bin/mise activate bash)"
 
 # 安装 Node.js LTS
+echo "  • 安装 Node.js LTS..."
 mise use -g node@lts
+
+# 更新 PATH 以包含 Node
+export PATH="$(mise where node)/bin:$PATH"
 echo "✓ Node.js 安装完成: $(node --version)"
 echo "✓ npm 版本: $(npm --version)"
 
 # 安装 Python 3.12
+echo "  • 安装 Python 3.12..."
 mise use -g python@3.12
+
+# 更新 PATH 以包含 Python
+export PATH="$(mise where python)/bin:$PATH"
 echo "✓ Python 安装完成: $(python --version)"
 echo "✓ pip 版本: $(pip --version)"
 
@@ -115,6 +136,24 @@ fi
 echo 'eval "$(mise activate bash)"' >> /etc/bash.bashrc
 if [[ -n "$DEFAULT_USER" ]] && [[ -f "/home/$DEFAULT_USER/.bashrc" ]]; then
   echo 'eval "$(mise activate bash)"' >> "/home/$DEFAULT_USER/.bashrc"
+fi
+
+# 为默认用户也安装 Node 和 Python
+if [[ -n "$DEFAULT_USER" ]]; then
+  echo "为 $DEFAULT_USER 用户配置 Node 和 Python..."
+  sudo -u "$DEFAULT_USER" bash <<'USERSCRIPT'
+  # 确保 mise 在 PATH 中
+  export PATH="/usr/local/bin:$PATH"
+  
+  # 配置 mise
+  eval "$(mise activate bash 2>/dev/null || true)"
+  
+  # 安装 Node 和 Python
+  mise use --global node@lts 2>/dev/null || echo "  ⚠️  Node:使用 root 配置"
+  mise use --global python@3.12 2>/dev/null || echo "  ⚠️  Python:使用 root 配置"
+  
+  echo "  ✓ mise 配置完成"
+USERSCRIPT
 fi
 
 # 安装 amix/vimrc 配置

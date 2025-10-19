@@ -46,6 +46,7 @@
 │   └── gcp_dev.pub             # SSH 公钥（gitignore）
 ├── docs/
 │   ├── BUILDER_GUIDE.md        # Builder 自动化配置指南
+│   ├── SSH_KEY_MANAGEMENT.md   # SSH 密钥管理方案
 │   └── QUICK_REFERENCE.md      # 快速参考手册
 ├── .env.example                # 环境变量模板
 └── README.md
@@ -127,23 +128,29 @@ bash scripts/setup-network.sh
 4.（可选）制作自定义镜像（更快启动，更一致环境）
 
 ```bash
-# 方式 A：自动化配置（推荐）
-# 创建 builder 时自动执行 scripts/builder-setup.sh
-bash scripts/build-image.sh create-builder
+# 方式 A：手动执行（推荐）
+bash scripts/build-image.sh create-builder    # 创建 builder 实例
+# 等待 30 秒让实例启动后，SSH 登录执行配置
+gcloud compute ssh dev-builder                # SSH 登录
+sudo bash ~/builder-setup.sh                  # 执行配置脚本（实时查看输出）
+# 等待 5-10 分钟配置完成
+gcloud compute instances stop dev-builder --zone=asia-northeast1-a
+bash scripts/build-image.sh create-image      # 创建镜像
 
-# 等待 3-5 分钟配置完成，然后 SSH 进入关机
-gcloud compute ssh dev-builder --zone=asia-northeast1-a
-sudo poweroff
+# 方式 B：手动执行（方便调试）
+bash scripts/build-image.sh create-builder    # 创建 builder 实例
+gcloud compute ssh dev-builder                # SSH 登录
+sudo bash ~/builder-setup.sh                  # 执行配置脚本（实时查看输出）
+sudo poweroff                                 # 配置完成后关机
+bash scripts/build-image.sh create-image      # 创建镜像
 
-# 创建镜像
-bash scripts/build-image.sh create-image
-
-# 方式 B：自定义配置
+# 方式 C：自定义配置
 # 1. 编辑 scripts/builder-setup.sh 添加您需要的工具
-# 2. 运行 bash scripts/build-image.sh create-builder
-# 3. 等待自动配置完成
-# 4. SSH 进入添加额外配置（可选）
-# 5. 关机并创建镜像
+# 2. bash scripts/build-image.sh create-builder
+# 3. gcloud compute ssh dev-builder
+# 4. sudo bash ~/builder-setup.sh（或分步执行脚本内容调试）
+# 5. sudo poweroff
+# 6. bash scripts/build-image.sh create-image
 
 # 详见 docs/BUILDER_GUIDE.md
 ```
@@ -222,12 +229,14 @@ bash scripts/destroy-dev.sh
   - 输出外网 IP 与 SSH 配置指引
 - `scripts/destroy-dev.sh`：删除带有指定标签的运行中实例（默认 `devbox=yes`）
 - `scripts/build-image.sh`：**自定义镜像构建工具**
-  - `create-builder`：创建构建机并自动执行配置脚本
+  - `create-builder`：创建构建机并通过 metadata 传入配置脚本
   - `create-image`：从构建机磁盘创建镜像（并加入镜像族）
   - `delete-builder`：删除构建机实例
-  - 配合 `scripts/builder-setup.sh` 实现自动化配置
+  - 脚本通过 metadata 传入并自动保存到 `~/builder-setup.sh`（方便调试）
 - `scripts/builder-setup.sh`：**Builder 配置脚本**
-  - 自动安装 Docker, Node.js, Python 等工具
+  - 安装 mise（Node.js/Python 版本管理器）
+  - 安装 Docker, Git, Vim (amix/vimrc)
+  - 配置 Git 用户信息和 SSH 密钥
   - 可自定义添加任意依赖和配置
   - 详见 [docs/BUILDER_GUIDE.md](docs/BUILDER_GUIDE.md)
 
