@@ -14,6 +14,7 @@
 - Spot 抢占式实例，低成本（典型 ~$0.05/小时）
 - 自定义镜像，环境一致，30s 级启动
 - 永久数据盘，代码与配置保留在 `/workspace`
+- **持久系统盘**：apt 安装的软件在实例重建后保留（默认开启）
 - 脚本化一键启动、自动定时删除，避免遗留账单
 - **统一用户配置**：从镜像构建到 Cursor 登录使用同一用户（通过 .env 配置）
 
@@ -196,7 +197,14 @@ bash scripts/destroy-dev.sh
 - `GCP_PROJECT_ID`：GCP 项目 ID
 - `GCP_REGION` / `GCP_ZONE`：区域与可用区
 - `ADDRESS_NAME`：静态 IP 名称
-- `DISK_NAME` / `DISK_SIZE_GB` / `DISK_TYPE`：永久盘配置
+- `DISK_NAME` / `DISK_SIZE_GB` / `DISK_TYPE`：数据盘配置（挂载到 `/workspace`）
+- **持久系统盘配置（默认开启）**：
+  - `PERSIST_BOOT_DISK`：是否启用持久系统盘（默认 `true`）
+  - `BOOT_DISK_NAME`：系统盘名称（默认 `dev-boot`）
+  - `BOOT_DISK_SIZE_GB`：系统盘大小（默认 `20`）
+  - `BOOT_DISK_TYPE`：系统盘类型（默认 `pd-balanced`）
+  - 开启后，`apt install` 安装的软件在实例重建后仍然保留
+  - 首次启动时从镜像创建系统盘，之后复用同一块盘
 - **镜像配置（智能选择）**：
   - `IMAGE_FAMILY` / `IMAGE_PROJECT`：自定义镜像（可选）
   - `DEFAULT_IMAGE_FAMILY` / `DEFAULT_IMAGE_PROJECT`：默认镜像（回退）
@@ -237,6 +245,9 @@ bash scripts/destroy-dev.sh
   - 首次使用会自动格式化新磁盘为 ext4 文件系统
   - 输出外网 IP 与 SSH 配置指引
 - `scripts/destroy-dev.sh`：删除带有指定标签的运行中实例（默认 `devbox=yes`）
+  - 默认只删除实例，保留持久系统盘和数据盘
+  - 使用 `--purge-boot` 参数可同时删除持久系统盘
+  - 使用 `--help` 查看完整用法
 - `scripts/build-image.sh`：**自定义镜像构建工具**
   - `create-builder`：创建构建机并通过 metadata 传入配置脚本
   - `create-image`：从构建机磁盘创建镜像（并加入镜像族）
@@ -287,6 +298,36 @@ bash scripts/destroy-dev.sh
 - **磁盘未挂载**：
   - 检查 `.env` 中 `MOUNT_DEVICE` 是否与实际一致（GCE 通常为 `/dev/sdb`）
   - 新磁盘会自动格式化为 ext4，无需手动操作
+
+### 持久系统盘
+
+- **工作原理**：
+  - 默认开启（`PERSIST_BOOT_DISK=true`）
+  - 首次启动时，从镜像创建一块名为 `dev-boot` 的持久磁盘作为系统盘
+  - 之后每次启动都复用这块系统盘，而不是从镜像重新创建
+  - 你在系统里 `apt install` 安装的软件、修改的配置都会保留
+
+- **费用影响**：
+  - 持久系统盘会持续产生存储费用（约 $0.10/GB/月 for pd-balanced）
+  - 默认 20GB 系统盘约 $2/月
+  - 如果不需要，可以设置 `PERSIST_BOOT_DISK=false` 关闭
+
+- **重置系统盘**：
+  - 如果系统盘出问题或想重新从镜像创建：
+    ```bash
+    # 删除实例和系统盘
+    bash scripts/destroy-dev.sh --purge-boot
+    # 重新启动（会从镜像创建新系统盘）
+    bash scripts/start-dev.sh
+    ```
+
+- **并发限制**：
+  - 同一块系统盘不能同时挂载到多台 VM
+  - 如果需要并发多台开发机，请为每台配置不同的 `BOOT_DISK_NAME`
+
+- **Spot 抢占风险**：
+  - Spot 实例可能被随时抢占，抢占时有极小概率数据未完全落盘
+  - 关键数据仍建议放在 `/workspace` 数据盘
 
 ### 网络问题
 

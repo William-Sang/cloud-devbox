@@ -40,6 +40,12 @@ DISK_NAME=${DISK_NAME:-dev-data}
 DISK_SIZE_GB=${DISK_SIZE_GB:-100}
 DISK_TYPE=${DISK_TYPE:-pd-balanced}
 
+# 持久 boot disk 配置（开启后系统盘也会持久化，apt 安装的软件不会丢失）
+PERSIST_BOOT_DISK=${PERSIST_BOOT_DISK:-true}
+BOOT_DISK_NAME=${BOOT_DISK_NAME:-dev-boot}
+BOOT_DISK_SIZE_GB=${BOOT_DISK_SIZE_GB:-20}
+BOOT_DISK_TYPE=${BOOT_DISK_TYPE:-pd-balanced}
+
 IMAGE_FAMILY=${IMAGE_FAMILY:-}
 IMAGE_PROJECT=${IMAGE_PROJECT:-}
 
@@ -128,6 +134,27 @@ else
 fi
 
 IMAGE_FLAGS+=(--image-family "$FINAL_IMAGE_FAMILY" --image-project "$FINAL_IMAGE_PROJECT")
+
+# 2.5) 准备持久 boot disk（如果启用）
+BOOT_DISK_EXISTS=false
+if [[ "$PERSIST_BOOT_DISK" == "true" ]]; then
+  echo "[start] 持久 boot disk 已启用: $BOOT_DISK_NAME"
+  
+  if run_gcloud compute disks describe "$BOOT_DISK_NAME" --zone "$GCP_ZONE" >/dev/null 2>&1; then
+    echo "[start] ✓ boot disk '$BOOT_DISK_NAME' 已存在，将复用"
+    BOOT_DISK_EXISTS=true
+  else
+    echo "[start] boot disk '$BOOT_DISK_NAME' 不存在，正在从镜像创建..."
+    run_gcloud compute disks create "$BOOT_DISK_NAME" \
+      --size="${BOOT_DISK_SIZE_GB}GB" \
+      --type="$BOOT_DISK_TYPE" \
+      --zone "$GCP_ZONE" \
+      --image-family "$FINAL_IMAGE_FAMILY" \
+      --image-project "$FINAL_IMAGE_PROJECT"
+    echo "[start] ✓ boot disk '$BOOT_DISK_NAME' 已创建"
+    BOOT_DISK_EXISTS=true
+  fi
+fi
 
 # 3) 启动脚本（在实例内部执行）
 STARTUP_SCRIPT_FILE="$ROOT_DIR/.state/startup-script.sh"
@@ -231,7 +258,7 @@ if [[ -n "${SSH_PUBLIC_KEY_FILE:-}" ]]; then
   fi
 fi
 
-# 5) 创建 Spot 实例
+# 6) 创建 Spot 实例
 GCLOUD_INSTANCE_CREATE_ARGS=(
   --zone "$GCP_ZONE"
   --machine-type "$SPOT_MACHINE_TYPE"
@@ -242,8 +269,15 @@ GCLOUD_INSTANCE_CREATE_ARGS=(
   --max-run-duration="$MAX_RUN_DURATION"
 )
 
-if [[ ${#IMAGE_FLAGS[@]} -gt 0 ]]; then
+# 根据是否使用持久 boot disk 决定启动盘来源
+if [[ "$PERSIST_BOOT_DISK" == "true" && "$BOOT_DISK_EXISTS" == "true" ]]; then
+  # 使用持久 boot disk 启动（不再传 --image-family/--image-project）
+  GCLOUD_INSTANCE_CREATE_ARGS+=(--disk "name=$BOOT_DISK_NAME,boot=yes,auto-delete=no,mode=rw")
+  echo "[start] 使用持久 boot disk 启动: $BOOT_DISK_NAME"
+elif [[ ${#IMAGE_FLAGS[@]} -gt 0 ]]; then
+  # 回退到从镜像启动（boot disk 会随实例删除）
   GCLOUD_INSTANCE_CREATE_ARGS+=("${IMAGE_FLAGS[@]}")
+  echo "[start] 使用镜像启动: $FINAL_IMAGE_FAMILY (boot disk 不持久化)"
 fi
 
 if [[ ${#TAGS_ARG[@]} -gt 0 ]]; then
@@ -277,6 +311,13 @@ if [[ -n "$SSH_IDENTITY_FILE_PATH" ]]; then
   IDENTITY_FILE_CONFIG="  IdentityFile $SSH_IDENTITY_FILE_PATH"
 fi
 
+BOOT_DISK_INFO=""
+if [[ "$PERSIST_BOOT_DISK" == "true" ]]; then
+  BOOT_DISK_INFO="系统盘： ${BOOT_DISK_NAME} (持久化，apt 安装的软件会保留)"
+else
+  BOOT_DISK_INFO="系统盘： 临时 (实例删除后会丢失)"
+fi
+
 cat <<MSG
 [start] done
 外网 IP: $EXTERNAL_IP
@@ -290,5 +331,6 @@ ${IDENTITY_FILE_CONFIG}
 
 然后使用： ssh gcp-dev
 工作目录： ${MOUNT_POINT}
+${BOOT_DISK_INFO}
 自动删除： ${MAX_RUN_DURATION} 后，动作为 ${TERMINATION_ACTION}
 MSG
