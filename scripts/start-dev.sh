@@ -92,10 +92,19 @@ mkdir -p "$ROOT_DIR/.state"
 echo "[start] zone=$GCP_ZONE instance=$INSTANCE_NAME"
 
 # 0) 确认静态 IP 存在
-run_gcloud compute addresses describe "$ADDRESS_NAME" --region "$GCP_REGION" >/dev/null 2>&1 || {
-  echo "[start] static address '$ADDRESS_NAME' not found in $GCP_REGION. Run scripts/setup-network.sh first." >&2
+ADDR_DESCRIBE_ERR=""
+if ! ADDR_DESCRIBE_ERR="$(run_gcloud compute addresses describe "$ADDRESS_NAME" --region "$GCP_REGION" 2>&1 >/dev/null)"; then
+  # gcloud 失败不一定是“资源不存在”，也可能是网络/权限/API 未启用等原因
+  if [[ "$ADDR_DESCRIBE_ERR" == *"was not found"* || "$ADDR_DESCRIBE_ERR" == *"NOT_FOUND"* || "$ADDR_DESCRIBE_ERR" == *"not found"* ]]; then
+    echo "[start] static address '$ADDRESS_NAME' not found in $GCP_REGION. Run scripts/setup-network.sh first." >&2
+  else
+    echo "[start] failed to query static address '$ADDRESS_NAME' in $GCP_REGION." >&2
+    echo "[start] gcloud error:" >&2
+    echo "$ADDR_DESCRIBE_ERR" >&2
+    echo "[start] hint: check network/DNS/proxy/SSL connectivity to compute.googleapis.com, and ensure Compute Engine API is enabled + permissions are sufficient." >&2
+  fi
   exit 1
-}
+fi
 
 # 1) 准备永久磁盘（不存在则创建）
 if run_gcloud compute disks describe "$DISK_NAME" --zone "$GCP_ZONE" >/dev/null 2>&1; then
