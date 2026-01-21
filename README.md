@@ -22,7 +22,7 @@
 1. ~~输出脚本运行时长~~ ✅ 已完成（所有脚本均已添加运行时长显示）
 2. ~~解决默认 /workspace 没有权限的问题~~ ✅ 已解决（所有流程使用 .env 配置的统一用户）
 3. ~~可以自定义添加 ssh pub key 用于虚拟机登录~~ ✅ 已支持（通过 .env 配置）
-4. 如何解决每次需要删除 机器指纹的问题（机器每次都会重新创建）
+4. ~~如何解决每次需要删除 机器指纹的问题（机器每次都会重新创建）~~ ✅ 已解决（在 SSH config 中启用 StrictHostKeyChecking no 和 UserKnownHostsFile /dev/null）
 5. ~~如何解决 windows cursor 读取不到 wls 下的 ssh key 的问题~~ ✅ 已解决（提供同步脚本）
 6. 自定义镜像是否可以，默认安装 cursor server
 7. ~~密钥管理优化【不内置在 镜像 中】~~ ✅ 已优化（通过 metadata 传递）
@@ -347,6 +347,12 @@ bash scripts/destroy-dev.sh
   - 确认防火墙规则已创建：`bash scripts/setup-network.sh`
   - 检查 SSH 用户名是否正确
   - 使用 `gcloud compute ssh` 作为备选方案（自动管理密钥）
+
+- **机器指纹问题（每次创建新实例需要删除 known_hosts）**：
+  - ✅ 已解决：在 SSH config 中启用 `StrictHostKeyChecking no` 和 `UserKnownHostsFile /dev/null`
+  - 由于每次创建的实例主机密钥会变化，这些选项可避免手动删除 `~/.ssh/known_hosts`
+  - `start-dev.sh` 输出的配置建议已包含这些选项
+  - 详见 `ssh/config.example` 中的配置模板
 
 - **使用 gcloud SSH（无需配置密钥）**：
   ```bash

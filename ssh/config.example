@@ -29,9 +29,10 @@ Host gcp-dev
   # 只使用指定的密钥
   IdentitiesOnly yes
   
-  # 跳过主机密钥检查（可选，首次连接时）
-  # StrictHostKeyChecking no
-  # UserKnownHostsFile /dev/null
+  # 跳过主机密钥检查（解决每次创建新实例时的机器指纹问题）
+  # 由于每次创建的实例主机密钥会变化，启用此选项可避免手动删除 known_hosts
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 方案 2：Windows + Cursor/VSCode 使用
@@ -56,7 +57,8 @@ Host gcp-dev
   # 只使用指定的密钥
   IdentitiesOnly yes
 
-  # 跳过主机密钥检查（可选，首次连接时）
+  # 跳过主机密钥检查（解决每次创建新实例时的机器指纹问题）
+  # 由于每次创建的实例主机密钥会变化，启用此选项可避免手动删除 known_hosts
   StrictHostKeyChecking no
   UserKnownHostsFile /dev/null
 

@@ -337,6 +337,10 @@ Host gcp-dev
   User ${SSH_USERNAME}
 ${IDENTITY_FILE_CONFIG}
   ServerAliveInterval 60
+  ServerAliveCountMax 3
+  IdentitiesOnly yes
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
 
 然后使用： ssh gcp-dev
 工作目录： ${MOUNT_POINT}
