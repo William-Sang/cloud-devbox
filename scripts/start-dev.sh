@@ -91,7 +91,14 @@ mkdir -p "$ROOT_DIR/.state"
 
 echo "[start] zone=$GCP_ZONE instance=$INSTANCE_NAME"
 
-# 0) 确认静态 IP 存在
+# 0) 确认 gcloud 可用
+if ! command -v gcloud >/dev/null 2>&1; then
+  echo "[start] gcloud CLI 未安装或未在 PATH 中，无法继续。" >&2
+  echo "[start] 请先安装 gcloud (google-cloud-cli)，或确保它已在 PATH 中。" >&2
+  exit 1
+fi
+
+# 1) 确认静态 IP 存在
 ADDR_DESCRIBE_ERR=""
 if ! ADDR_DESCRIBE_ERR="$(run_gcloud compute addresses describe "$ADDRESS_NAME" --region "$GCP_REGION" 2>&1 >/dev/null)"; then
   # gcloud 失败不一定是“资源不存在”，也可能是网络/权限/API 未启用等原因
@@ -106,7 +113,7 @@ if ! ADDR_DESCRIBE_ERR="$(run_gcloud compute addresses describe "$ADDRESS_NAME" 
   exit 1
 fi
 
-# 1) 准备永久磁盘（不存在则创建）
+# 2) 准备永久磁盘（不存在则创建）
 if run_gcloud compute disks describe "$DISK_NAME" --zone "$GCP_ZONE" >/dev/null 2>&1; then
   echo "[start] disk '$DISK_NAME' exists"
 else
@@ -117,7 +124,7 @@ else
   echo "[start] disk '$DISK_NAME' created"
 fi
 
-# 2) 组装镜像参数 - 智能检测自定义镜像
+# 3) 组装镜像参数 - 智能检测自定义镜像
 IMAGE_FLAGS=()
 FINAL_IMAGE_FAMILY=""
 FINAL_IMAGE_PROJECT=""
