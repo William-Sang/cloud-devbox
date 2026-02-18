@@ -81,7 +81,8 @@ install_proxy() {
   fi
 
   # ── 2. Git 代理 ─────────────────────────────────────────────────────────────
-  if config_is_true "proxy.git" 2>/dev/null; then
+  if [[ "${PROXY_SOURCE:-}" == "cli" ]] || [[ "${PROXY_SOURCE:-}" == "interactive" ]] \
+     || config_is_true "proxy.git" 2>/dev/null; then
     log_info "配置 git 代理..."
     git config --global http.proxy "$PROXY_URL" 2>/dev/null || true
     git config --global https.proxy "$PROXY_URL" 2>/dev/null || true
@@ -89,7 +90,8 @@ install_proxy() {
   fi
 
   # ── 3. Docker 守护进程代理 ───────────────────────────────────────────────────
-  if config_is_true "proxy.docker" 2>/dev/null; then
+  if [[ "${PROXY_SOURCE:-}" == "cli" ]] || [[ "${PROXY_SOURCE:-}" == "interactive" ]] \
+     || config_is_true "proxy.docker" 2>/dev/null; then
     _setup_docker_proxy
   fi
 
