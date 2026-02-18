@@ -69,17 +69,30 @@ install_docker() {
     if [[ ! -f "$daemon_json" ]] || ! grep -q "registry-mirrors" "$daemon_json" 2>/dev/null; then
       log_info "配置 Docker Hub 镜像加速..."
       sudo mkdir -p /etc/docker
+
+      # 将逗号分隔的镜像列表转为 JSON 数组
+      local mirrors_json="["
+      local first=true
+      IFS=',' read -ra _mirrors <<< "$MIRROR_DOCKER_HUB"
+      for m in "${_mirrors[@]}"; do
+        m="${m// /}"  # 去空格
+        [[ -z "$m" ]] && continue
+        [[ "$first" == true ]] && first=false || mirrors_json+=","
+        mirrors_json+="\"${m}\""
+      done
+      mirrors_json+="]"
+
       if [[ -f "$daemon_json" ]] && check_command jq; then
         # 合并到已有配置，保留其他字段
         local tmp_daemon
-        tmp_daemon=$(jq --arg mirror "$MIRROR_DOCKER_HUB" \
-          '. + {"registry-mirrors": [$mirror]}' "$daemon_json")
+        tmp_daemon=$(jq --argjson mirrors "$mirrors_json" \
+          '. + {"registry-mirrors": $mirrors}' "$daemon_json")
         echo "$tmp_daemon" | sudo tee "$daemon_json" > /dev/null
       else
         # 文件不存在或 jq 不可用，直接写入
         cat <<EOF | sudo tee "$daemon_json" > /dev/null
 {
-  "registry-mirrors": ["${MIRROR_DOCKER_HUB}"]
+  "registry-mirrors": ${mirrors_json}
 }
 EOF
       fi

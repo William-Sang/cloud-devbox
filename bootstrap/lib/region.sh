@@ -29,7 +29,7 @@ apply_cn_mirrors() {
   MIRROR_PYPI="https://mirrors.aliyun.com/pypi/simple/"
   MIRROR_PYPI_TRUSTED_HOST="mirrors.aliyun.com"
   MIRROR_DOCKER_CE="https://mirrors.aliyun.com/docker-ce"
-  MIRROR_DOCKER_HUB="https://registry.cn-hangzhou.aliyuncs.com"
+  MIRROR_DOCKER_HUB="https://docker.m.daocloud.io,https://docker-0.unsee.tech,https://mirror.iscas.ac.cn"
   MIRROR_GITHUB_PROXY="https://ghfast.top/"
   MIRROR_FNM_NODE_DIST="https://npmmirror.com/mirrors/node"
   log_info "区域: 中国大陆 — 使用国内镜像加速"
