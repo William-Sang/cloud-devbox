@@ -8,13 +8,13 @@ Ubuntu 全栈开发环境一键初始化工具，专为 vibe coding 设计。
 
 ```bash
 # 海外用户
-curl -fsSL https://raw.githubusercontent.com/William-Sang/cloud-devbox/main/bootstrap/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/William-Sang/cloud-devbox/main/bootstrap/remote-install.sh | bash
 
 # 中国用户（国内镜像加速）
-curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/William-Sang/cloud-devbox/main/bootstrap/install.sh | bash -s -- --region cn
+curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/William-Sang/cloud-devbox/main/bootstrap/remote-install.sh | bash -s -- --region cn
 
 # 全量安装（非交互）
-curl -fsSL https://raw.githubusercontent.com/William-Sang/cloud-devbox/main/bootstrap/install.sh | bash -s -- --region overseas --all --yes
+curl -fsSL https://raw.githubusercontent.com/William-Sang/cloud-devbox/main/bootstrap/remote-install.sh | bash -s -- --region overseas --all --yes
 ```
 
 ### 本地安装
@@ -253,7 +253,7 @@ bash bootstrap/init-devbox.sh apply --proxy http://127.0.0.1:7890 --region cn --
 bash bootstrap/init-devbox.sh apply --proxy socks5://127.0.0.1:7891 --region cn --all --yes
 
 # 远程一键安装 + 代理
-curl -fsSL .../install.sh | bash -s -- --proxy http://127.0.0.1:7890 --region cn --all --yes
+curl -fsSL .../remote-install.sh | bash -s -- --proxy http://127.0.0.1:7890 --region cn --all --yes
 ```
 
 `--proxy` 会在安装过程中自动设置 `HTTP_PROXY`/`HTTPS_PROXY` 环境变量，所有下载（curl、apt、npm、pip）都会走代理。

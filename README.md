@@ -55,7 +55,7 @@
 │   └── startup-script.sh       # 临时启动脚本
 ├── bootstrap/                  # init-devbox: 独立开发环境安装器
 │   ├── init-devbox.sh          # CLI 入口 (apply/doctor/verify)
-│   ├── install.sh              # curl|bash 远程安装入口
+│   ├── remote-install.sh       # curl|bash 远程引导（clone 仓库 → 启动 init-devbox.sh）
 │   ├── config.default.toml     # 默认配置
 │   ├── USAGE.md                # 使用文档
 │   ├── lib/                    # 基础库 (common, config, region, proxy)

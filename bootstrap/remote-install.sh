@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-# install.sh — 远程一键安装入口（curl | bash）
+# remote-install.sh — 远程一键安装入口（curl | bash）
+# 仅负责: 安装 git/curl → clone 仓库 → 启动 init-devbox.sh apply
+# 本地已有仓库时请直接运行: bash bootstrap/init-devbox.sh apply
 # 用法：
-#   curl -fsSL https://raw.githubusercontent.com/William-Sang/cloud-devbox/main/bootstrap/install.sh | bash
-#   curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/William-Sang/cloud-devbox/main/bootstrap/install.sh | bash -s -- --region cn
+#   curl -fsSL https://raw.githubusercontent.com/William-Sang/cloud-devbox/main/bootstrap/remote-install.sh | bash
+#   curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/William-Sang/cloud-devbox/main/bootstrap/remote-install.sh | bash -s -- --region cn
 set -euo pipefail
 
 REPO_URL="https://github.com/William-Sang/cloud-devbox.git"
 INSTALL_DIR="${HOME}/.local/share/init-devbox"
-SCRIPT_NAME="install.sh"
+SCRIPT_NAME="remote-install.sh"
 
 # ─── 解析 --region 和 --proxy 参数 ─────────────────────────────────────────────
 REGION=""

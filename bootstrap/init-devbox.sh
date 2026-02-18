@@ -97,7 +97,7 @@ verify 选项:
   bash init-devbox.sh apply --module base,node,python --yes
 
   # 远程一键安装
-  curl -fsSL https://raw.githubusercontent.com/William-Sang/cloud-devbox/main/bootstrap/install.sh | bash
+  curl -fsSL https://raw.githubusercontent.com/William-Sang/cloud-devbox/main/bootstrap/remote-install.sh | bash
 EOF
 }
 
