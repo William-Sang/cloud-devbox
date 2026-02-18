@@ -46,12 +46,34 @@ install_shell_config() {
   fi
   git config --global pull.rebase false 2>/dev/null || true
 
-  # 不覆盖已有的 user.name/user.email
+  # 不覆盖已有的 user.name/user.email；交互模式下询问用户输入
   if [[ -z "$(git config --global user.name 2>/dev/null)" ]]; then
-    log_warn "git user.name 未设置。请运行: git config --global user.name 'Your Name'"
+    if [[ -t 0 ]]; then
+      local git_name
+      read -r -p "请输入 git user.name (留空跳过): " git_name
+      if [[ -n "$git_name" ]]; then
+        git config --global user.name "$git_name"
+        log_success "git user.name = $git_name"
+      else
+        log_warn "git user.name 未设置。请运行: git config --global user.name 'Your Name'"
+      fi
+    else
+      log_warn "git user.name 未设置。请运行: git config --global user.name 'Your Name'"
+    fi
   fi
   if [[ -z "$(git config --global user.email 2>/dev/null)" ]]; then
-    log_warn "git user.email 未设置。请运行: git config --global user.email 'you@example.com'"
+    if [[ -t 0 ]]; then
+      local git_email
+      read -r -p "请输入 git user.email (留空跳过): " git_email
+      if [[ -n "$git_email" ]]; then
+        git config --global user.email "$git_email"
+        log_success "git user.email = $git_email"
+      else
+        log_warn "git user.email 未设置。请运行: git config --global user.email 'you@example.com'"
+      fi
+    else
+      log_warn "git user.email 未设置。请运行: git config --global user.email 'you@example.com'"
+    fi
   fi
 
   # ── 工具补全 ────────────────────────────────────────────────────────────────

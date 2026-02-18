@@ -15,6 +15,14 @@ curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/William-Sang/clo
 
 # 全量安装（非交互）
 curl -fsSL https://raw.githubusercontent.com/William-Sang/cloud-devbox/main/bootstrap/remote-install.sh | bash -s -- --region overseas --all --yes
+
+# 非交互式完整安装（含代理 + git 身份配置）
+curl -fsSL https://raw.githubusercontent.com/William-Sang/cloud-devbox/main/bootstrap/remote-install.sh | bash -s -- \
+  --proxy http://127.0.0.1:7890 \
+  --region cn \
+  --all --yes \
+  && git config --global user.name "William Sang" \
+  && git config --global user.email "you@example.com"
 ```
 
 ### 本地安装
@@ -31,6 +39,13 @@ bash bootstrap/init-devbox.sh apply --all --yes
 
 # 仅安装基础 + Node + Python
 bash bootstrap/init-devbox.sh apply --module base,node,python --yes
+
+# 非交互式完整安装（含代理 + git 身份配置）
+bash bootstrap/init-devbox.sh apply \
+  --proxy http://127.0.0.1:7890 \
+  --region cn --all --yes \
+  && git config --global user.name "Your Name" \
+  && git config --global user.email "you@example.com"
 ```
 
 ## 区域选择
@@ -43,7 +58,7 @@ bash bootstrap/init-devbox.sh apply --module base,node,python --yes
 | **npm** | registry.npmmirror.com | registry.npmjs.org |
 | **PyPI** | mirrors.aliyun.com/pypi | pypi.org |
 | **Docker CE** | mirrors.aliyun.com/docker-ce | download.docker.com |
-| **Docker Hub** | registry.cn-hangzhou.aliyuncs.com | docker.io |
+| **Docker Hub** | docker.m.daocloud.io 等多镜像 | docker.io |
 | **GitHub 下载** | ghfast.top 代理 | 直连 |
 
 ### 切换区域
