@@ -75,4 +75,4 @@ echo "[$SCRIPT_NAME] 安装目录: $INSTALL_DIR"
 echo ""
 
 # ─── 启动安装 ──────────────────────────────────────────────────────────────────
-exec bash "$INSTALL_DIR/bootstrap/init-devbox.sh" apply "$@"
+exec bash "$INSTALL_DIR/bootstrap/init-devbox.sh" apply "$@" </dev/tty
