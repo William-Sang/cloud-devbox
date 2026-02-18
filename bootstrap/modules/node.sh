@@ -31,8 +31,8 @@ install_node() {
       local arch
       arch=$(uname -m)
       case "$arch" in
-        x86_64)  arch="linux-x64" ;;
-        aarch64) arch="linux-arm64" ;;
+        x86_64)  arch="linux" ;;
+        aarch64) arch="arm64" ;;
         *) log_error "不支持的 CPU 架构: $arch"; return 1 ;;
       esac
       local fnm_url
