@@ -87,15 +87,15 @@ if [[ -z "$TARGET_INSTANCE" && -f "$ROOT_DIR/.state/last_instance_name" ]]; then
 fi
 
 # 删除实例的函数
+INSTANCE_DELETED=false
 delete_instances() {
-  local deleted=false
 
   if [[ -n "$TARGET_INSTANCE" ]]; then
     echo "[destroy] deleting instance: $TARGET_INSTANCE"
     if ! run_gcloud compute instances delete "$TARGET_INSTANCE" --zone "$GCP_ZONE" --quiet; then
       echo "[destroy] ⚠ 删除实例 '$TARGET_INSTANCE' 失败（可能已不存在或权限不足）" >&2
     else
-      deleted=true
+      INSTANCE_DELETED=true
     fi
   else
     echo "[destroy] no explicit instance specified, deleting labeled instances"
@@ -112,7 +112,7 @@ delete_instances() {
         if ! run_gcloud compute instances delete "$name" --zone "$GCP_ZONE" --quiet; then
           echo "[destroy] ⚠ 删除实例 '$name' 失败" >&2
         else
-          deleted=true
+          INSTANCE_DELETED=true
         fi
       done <<< "$INSTANCE_LIST"
     fi
@@ -123,10 +123,12 @@ delete_instances() {
 # 执行实例删除
 delete_instances
 
-# 清理 state 文件（实例已删除，避免下次误操作）
+# 清理 state 文件（仅在删除成功时，避免失败场景丢失实例定位信息）
 STATE_FILE="$ROOT_DIR/.state/last_instance_name"
-if [[ -f "$STATE_FILE" ]]; then
+if [[ "$INSTANCE_DELETED" == "true" && -f "$STATE_FILE" ]]; then
   rm -f "$STATE_FILE"
+elif [[ "$INSTANCE_DELETED" != "true" && -f "$STATE_FILE" ]]; then
+  echo "[destroy] ⚠ 删除未成功，保留 state 文件: $STATE_FILE" >&2
 fi
 
 # 如果指定了 --purge-boot，同时删除持久 boot disk

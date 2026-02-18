@@ -141,9 +141,9 @@ sudo journalctl -u google-startup-scripts.service
 ### 磁盘未挂载
 
 ```bash
-# SSH 进入实例手动挂载
+# SSH 进入实例手动挂载（使用 by-id 稳定路径，DISK_NAME 替换为你的磁盘名）
 sudo mkdir -p /workspace
-sudo mount /dev/sdb /workspace
+sudo mount /dev/disk/by-id/google-dev-data /workspace
 ```
 
 ---

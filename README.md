@@ -289,7 +289,7 @@ bash scripts/destroy-dev.sh
 - **镜像选择机制**：
   - ✅ 脚本支持智能镜像选择，无需手动修改配置
   - 如果配置了自定义镜像，脚本会先检测是否存在
-  - 如果自定义镜像不存在或未配置，自动使用默认镜像（Debian 12）
+  - 如果自定义镜像不存在或未配置，自动使用默认镜像（Ubuntu 24.04）
   - 可以通过 `DEFAULT_IMAGE_FAMILY` 和 `DEFAULT_IMAGE_PROJECT` 自定义默认镜像
 
 - **启动失败且提示镜像不存在**：
@@ -302,7 +302,7 @@ bash scripts/destroy-dev.sh
 ### 磁盘问题
 
 - **磁盘未挂载**：
-  - 检查 `.env` 中 `MOUNT_DEVICE` 是否与实际一致（GCE 通常为 `/dev/sdb`）
+  - 检查 `.env` 中 `MOUNT_DEVICE` 是否正确（默认使用 `/dev/disk/by-id/google-<DISK_NAME>` 稳定路径）
   - 新磁盘会自动格式化为 ext4，无需手动操作
 
 ### 持久系统盘

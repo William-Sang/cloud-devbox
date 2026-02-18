@@ -389,9 +389,10 @@ ${IDENTITY_FILE_CONFIG}
   ServerAliveCountMax 3
   IdentitiesOnly yes
   StrictHostKeyChecking accept-new
-  UserKnownHostsFile /dev/null
+  UserKnownHostsFile ~/.ssh/known_hosts.cloud-devbox
   # 注意: accept-new 会自动接受新主机密钥但拒绝变更的密钥
-  # Spot 实例重建后主机密钥会变化，如遇连接拒绝可清理 known_hosts 对应条目
+  # Spot 实例重建后主机密钥会变化，如遇连接拒绝可运行:
+  # ssh-keygen -R $EXTERNAL_IP -f ~/.ssh/known_hosts.cloud-devbox
 
 然后使用： ssh gcp-dev
 工作目录： ${MOUNT_POINT}
