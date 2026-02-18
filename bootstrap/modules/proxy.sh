@@ -35,6 +35,7 @@ install_proxy() {
           return 0
         fi
         _proxy_from_interactive=true
+        PROXY_SOURCE="interactive"
         # 询问是否持久化到 .bashrc
         local persist_choice
         read -r -p "是否将代理写入 ~/.bashrc 以便永久生效? [Y/n]: " persist_choice
@@ -53,10 +54,12 @@ install_proxy() {
   fi
 
   # ── 1. 持久化到 .bashrc ──────────────────────────────────────────────────────
-  # 交互式输入：由用户选择；其他来源：看 config
+  # CLI --proxy：默认持久化；交互式输入：由用户选择；其他来源：看 config
   local _should_persist=false
   if [[ "$_proxy_from_interactive" == true ]]; then
     _should_persist="$_proxy_persist_bashrc"
+  elif [[ "${PROXY_SOURCE:-}" == "cli" ]]; then
+    _should_persist=true
   elif config_is_true "proxy.persist_bashrc" 2>/dev/null; then
     _should_persist=true
   fi

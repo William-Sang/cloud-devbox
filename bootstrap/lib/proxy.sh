@@ -8,6 +8,7 @@ _PROXY_LOADED=1
 # 全局代理状态（由 resolve_proxy 设置）
 PROXY_URL=""
 PROXY_NO_PROXY=""
+PROXY_SOURCE=""  # "cli" | "config" | "env" | "interactive" | ""
 
 # ─── 解析并导出代理 ──────────────────────────────────────────────────────────
 # 用法: resolve_proxy "$CLI_PROXY"
@@ -19,16 +20,19 @@ resolve_proxy() {
   # 1. CLI 参数
   if [[ -n "$cli_proxy" ]]; then
     PROXY_URL="$cli_proxy"
+    PROXY_SOURCE="cli"
   fi
 
   # 2. config.toml
   if [[ -z "$PROXY_URL" ]]; then
     PROXY_URL=$(config_get "proxy.url" "")
+    [[ -n "$PROXY_URL" ]] && PROXY_SOURCE="config"
   fi
 
   # 3. 已有环境变量
   if [[ -z "$PROXY_URL" ]]; then
     PROXY_URL="${HTTP_PROXY:-${http_proxy:-}}"
+    [[ -n "$PROXY_URL" ]] && PROXY_SOURCE="env"
   fi
 
   # 未配置代理，直接返回
