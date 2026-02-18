@@ -5,6 +5,7 @@ MODULES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BOOTSTRAP_DIR="$(cd "$MODULES_DIR/.." && pwd)"
 
 source "$BOOTSTRAP_DIR/lib/common.sh"
+source "$BOOTSTRAP_DIR/lib/config.sh"
 source "$BOOTSTRAP_DIR/lib/region.sh"
 
 # ─── 验证结果收集 ─────────────────────────────────────────────────────────────
@@ -79,6 +80,18 @@ _verify_versions() {
   # uv — 属于 python 模块
   if check_command uv; then
     _check_pass "uv: $(uv --version 2>/dev/null)"
+    # 检查配置中要求的 Python 版本是否已安装
+    local _py_versions
+    _py_versions=$(config_get "python.versions" "3.12 3.13" 2>/dev/null || echo "3.12 3.13")
+    for _pyver in $_py_versions; do
+      if uv python list --only-installed 2>/dev/null | grep -q "cpython-${_pyver}[^0-9]"; then
+        _check_pass "python ${_pyver}: 已安装"
+      elif _module_installed python; then
+        _check_fail "python ${_pyver}: 未安装"
+      else
+        _check_warn "python ${_pyver}: 未安装（python 模块未选中）"
+      fi
+    done
   elif _module_installed python; then
     _check_fail "uv: 未安装"
   else

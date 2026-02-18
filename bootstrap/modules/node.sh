@@ -113,29 +113,23 @@ install_node() {
   else
     log_info "安装 bun..."
 
-    if [[ -n "$MIRROR_GITHUB_PROXY" ]]; then
-      # bun 安装脚本从 GitHub 下载，中国区域需要代理
-      # bun.sh/install 支持 BUN_INSTALL 变量但不支持代理
-      # 直接下载二进制
-      local bun_arch
-      bun_arch=$(uname -m)
-      case "$bun_arch" in
-        x86_64)  bun_arch="bun-linux-x64" ;;
-        aarch64) bun_arch="bun-linux-aarch64" ;;
-      esac
-      local bun_url
-      bun_url=$(github_url "https://github.com/oven-sh/bun/releases/latest/download/${bun_arch}.zip")
-      local tmp_dir
-      tmp_dir=$(mktemp -d)
-      curl -fsSL "$bun_url" -o "$tmp_dir/bun.zip" || { rm -rf "$tmp_dir"; return 1; }
-      unzip -q "$tmp_dir/bun.zip" -d "$tmp_dir"
-      mkdir -p "${HOME}/.bun/bin"
-      mv "$tmp_dir/${bun_arch}/bun" "${HOME}/.bun/bin/bun"
-      chmod +x "${HOME}/.bun/bin/bun"
-      rm -rf "$tmp_dir"
-    else
-      curl -fsSL https://bun.sh/install | bash
-    fi
+    # 统一使用直接二进制下载，避免官方脚本额外修改 .bashrc 导致重复 PATH
+    local bun_arch
+    bun_arch=$(uname -m)
+    case "$bun_arch" in
+      x86_64)  bun_arch="bun-linux-x64" ;;
+      aarch64) bun_arch="bun-linux-aarch64" ;;
+    esac
+    local bun_url
+    bun_url=$(github_url "https://github.com/oven-sh/bun/releases/latest/download/${bun_arch}.zip")
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    curl -fsSL "$bun_url" -o "$tmp_dir/bun.zip" || { rm -rf "$tmp_dir"; return 1; }
+    unzip -q "$tmp_dir/bun.zip" -d "$tmp_dir"
+    mkdir -p "${HOME}/.bun/bin"
+    mv "$tmp_dir/${bun_arch}/bun" "${HOME}/.bun/bin/bun"
+    chmod +x "${HOME}/.bun/bin/bun"
+    rm -rf "$tmp_dir"
 
     export PATH="${HOME}/.bun/bin:${PATH}"
     add_to_bashrc "BUN_SETUP" \

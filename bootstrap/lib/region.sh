@@ -149,6 +149,8 @@ resolve_region() {
   [[ -n "$override" ]] && MIRROR_DOCKER_HUB="$override"
   override=$(config_get "mirrors.github_proxy" "")
   [[ -n "$override" ]] && MIRROR_GITHUB_PROXY="$override"
+  override=$(config_get "mirrors.fnm_node_dist" "")
+  [[ -n "$override" ]] && MIRROR_FNM_NODE_DIST="$override"
 }
 
 # ─── 获取 GitHub 下载 URL（自动加代理前缀）────────────────────────────────────

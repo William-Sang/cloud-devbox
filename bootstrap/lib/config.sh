@@ -37,19 +37,8 @@ config_load() {
       key="${BASH_REMATCH[1]}"
       value="${BASH_REMATCH[2]}"
 
-      # 去除值的引号
-      value="${value#\"}"
-      value="${value%\"}"
-      value="${value#\'}"
-      value="${value%\'}"
-
-      # 去除行内注释（# 前有空格时）
-      if [[ "$value" =~ ^([^#]*)[[:space:]]+#.*$ ]]; then
-        value="${BASH_REMATCH[1]}"
-        value="${value%"${value##*[![:space:]]}"}"
-      fi
-
       # 处理数组值: ["a", "b"] → "a b"（空格分隔）
+      # 数组在去注释/引号前处理，因为内部含 "," 和引号
       if [[ "$value" == \[*\] ]]; then
         value="${value#\[}"
         value="${value%\]}"
@@ -59,6 +48,17 @@ config_load() {
         value=$(echo "$value" | tr -s ' ')
         value="${value#"${value%%[![:space:]]*}"}"
         value="${value%"${value##*[![:space:]]}"}"
+      else
+        # 非数组值：先去行内注释，再去引号
+        # 顺序重要：避免引号值与注释中的引号混淆
+        if [[ "$value" =~ ^([^#]*)[[:space:]]+#.*$ ]]; then
+          value="${BASH_REMATCH[1]}"
+          value="${value%"${value##*[![:space:]]}"}"
+        fi
+        value="${value#\"}"
+        value="${value%\"}"
+        value="${value#\'}"
+        value="${value%\'}"
       fi
 
       # 存入关联数组

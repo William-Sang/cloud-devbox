@@ -154,6 +154,7 @@ pypi = ""
 docker_ce = ""
 docker_hub = ""
 github_proxy = ""
+fnm_node_dist = ""
 ```
 
 ## 安装后的日常使用

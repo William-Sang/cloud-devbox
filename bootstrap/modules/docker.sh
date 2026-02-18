@@ -130,6 +130,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   trap 'echo ""; echo "[docker.sh] 耗时: $(show_duration $INIT_START)"' EXIT
   check_ubuntu || exit 1
   ensure_sudo  || exit 1
+  sudo apt-get update -qq
   resolve_region "" "false"
   install_docker
 fi

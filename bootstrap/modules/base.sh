@@ -17,11 +17,8 @@ BASE_PACKAGES=(
 # ─── 检查 ──────────────────────────────────────────────────────────────────────
 check_base() {
   local missing=0
-  for cmd in git curl wget vim tmux ripgrep jq unzip; do
-    # ripgrep 的二进制名为 rg
-    local bin="$cmd"
-    [[ "$cmd" == "ripgrep" ]] && bin="rg"
-    check_command "$bin" || missing=$((missing + 1))
+  for cmd in git curl wget vim tmux htop make rg jq unzip; do
+    check_command "$cmd" || missing=$((missing + 1))
   done
   [[ $missing -eq 0 ]]
 }

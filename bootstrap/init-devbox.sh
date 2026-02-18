@@ -147,6 +147,12 @@ parse_args() {
         ;;
     esac
   done
+
+  # 校验 --region 值
+  if [[ -n "$CLI_REGION" && "$CLI_REGION" != "cn" && "$CLI_REGION" != "overseas" ]]; then
+    log_error "无效区域: $CLI_REGION（可选: cn, overseas）"
+    exit 1
+  fi
 }
 
 # ─── 交互式模块选择菜单 ───────────────────────────────────────────────────────
