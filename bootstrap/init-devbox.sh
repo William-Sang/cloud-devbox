@@ -399,9 +399,10 @@ cmd_apply() {
   run_modules "${modules[@]}"
 
   # 自动运行验证（传入已安装模块列表，使验证结果与选择一致）
+  # run_verify 在有失败项时返回非零，不应触发 set -e 退出
   echo ""
   source "$BOOTSTRAP_DIR/modules/verify.sh"
-  run_verify "$REPORT_JSON" "${modules[*]}"
+  run_verify "$REPORT_JSON" "${modules[*]}" || true
 
   # 日志提示
   echo ""
@@ -427,7 +428,8 @@ cmd_doctor() {
   fi
 
   source "$BOOTSTRAP_DIR/modules/preflight.sh"
-  run_preflight
+  # run_preflight 在有失败项时返回非零，不应触发 set -e 退出
+  run_preflight || true
 }
 
 # ─── 子命令: verify ────────────────────────────────────────────────────────────
@@ -450,7 +452,7 @@ cmd_verify() {
   check_ubuntu 2>/dev/null || true
 
   source "$BOOTSTRAP_DIR/modules/verify.sh"
-  run_verify "$REPORT_JSON"
+  run_verify "$REPORT_JSON" || true
 }
 
 # ─── 主入口 ────────────────────────────────────────────────────────────────────
