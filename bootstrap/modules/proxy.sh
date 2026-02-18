@@ -17,9 +17,29 @@ check_proxy() {
 install_proxy() {
   log_step "配置代理"
 
+  # 未配置代理时，交互式询问
   if [[ -z "$PROXY_URL" ]]; then
-    log_info "未配置代理，跳过。"
-    return 0
+    if [[ -t 0 ]]; then
+      echo ""
+      echo "未检测到代理配置。如需代理访问外网，请输入代理地址。"
+      echo "支持格式: http://host:port, socks5://host:port"
+      echo ""
+      local input_proxy
+      read -r -p "代理地址 (留空跳过): " input_proxy
+      if [[ -n "$input_proxy" ]]; then
+        resolve_proxy "$input_proxy"
+        if [[ -z "$PROXY_URL" ]]; then
+          log_warn "代理地址格式无效，跳过代理配置。"
+          return 0
+        fi
+      else
+        log_info "未配置代理，跳过。"
+        return 0
+      fi
+    else
+      log_info "未配置代理，跳过。"
+      return 0
+    fi
   fi
 
   # ── 1. 持久化到 .bashrc ──────────────────────────────────────────────────────
