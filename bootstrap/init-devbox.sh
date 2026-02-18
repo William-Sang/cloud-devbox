@@ -364,10 +364,10 @@ cmd_apply() {
   # 执行
   run_modules "${modules[@]}"
 
-  # 自动运行验证
+  # 自动运行验证（传入已安装模块列表，使验证结果与选择一致）
   echo ""
   source "$BOOTSTRAP_DIR/modules/verify.sh"
-  run_verify "$REPORT_JSON"
+  run_verify "$REPORT_JSON" "${modules[*]}"
 }
 
 # ─── 子命令: doctor ────────────────────────────────────────────────────────────

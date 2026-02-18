@@ -66,11 +66,20 @@ install_docker() {
     if [[ ! -f "$daemon_json" ]] || ! grep -q "registry-mirrors" "$daemon_json" 2>/dev/null; then
       log_info "配置 Docker Hub 镜像加速..."
       sudo mkdir -p /etc/docker
-      cat <<EOF | sudo tee "$daemon_json" > /dev/null
+      if [[ -f "$daemon_json" ]] && check_command jq; then
+        # 合并到已有配置，保留其他字段
+        local tmp_daemon
+        tmp_daemon=$(jq --arg mirror "$MIRROR_DOCKER_HUB" \
+          '. + {"registry-mirrors": [$mirror]}' "$daemon_json")
+        echo "$tmp_daemon" | sudo tee "$daemon_json" > /dev/null
+      else
+        # 文件不存在或 jq 不可用，直接写入
+        cat <<EOF | sudo tee "$daemon_json" > /dev/null
 {
   "registry-mirrors": ["${MIRROR_DOCKER_HUB}"]
 }
 EOF
+      fi
     fi
   fi
 

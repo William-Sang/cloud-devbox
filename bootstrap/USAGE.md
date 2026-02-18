@@ -136,14 +136,11 @@ default = "3.12"        # 默认版本
 
 [node]
 manager = "fnm"         # Node 版本管理器
-lts = "22"              # LTS 版本号
+lts = ""                # 指定版本号（如 "22"），留空则安装最新 LTS
 
 [node.package_managers]
 pnpm = true             # 是否安装 pnpm
 bun = true              # 是否安装 bun
-
-[typescript]
-global = false          # 是否全局安装 TypeScript（建议 false）
 
 [docker]
 mode = "group"          # "group"（docker 组）或 "rootless"
@@ -157,7 +154,6 @@ pypi = ""
 docker_ce = ""
 docker_hub = ""
 github_proxy = ""
-fallback_to_official = true  # 镜像不可达时回退官方源
 ```
 
 ## 安装后的日常使用

@@ -13,6 +13,15 @@ _VERIFY_PASS=0
 _VERIFY_WARN=0
 _VERIFY_FAIL=0
 
+# 已安装的模块列表（由 run_verify 设置；为空则视为全量检查）
+_VERIFY_MODULES=""
+
+# 判断模块是否被安装（或全量检查模式）
+_module_installed() {
+  [[ -z "$_VERIFY_MODULES" ]] && return 0
+  [[ " $_VERIFY_MODULES " == *" $1 "* ]]
+}
+
 _check_pass() { log_success "$1"; _VERIFY_PASS=$((_VERIFY_PASS + 1)); _VERIFY_RESULTS+=("PASS|$1"); }
 _check_warn() { log_warn "$1";    _VERIFY_WARN=$((_VERIFY_WARN + 1)); _VERIFY_RESULTS+=("WARN|$1"); }
 _check_fail() { log_error "$1";   _VERIFY_FAIL=$((_VERIFY_FAIL + 1)); _VERIFY_RESULTS+=("FAIL|$1"); }
@@ -21,14 +30,15 @@ _check_fail() { log_error "$1";   _VERIFY_FAIL=$((_VERIFY_FAIL + 1)); _VERIFY_RE
 _verify_versions() {
   log_step "工具版本检查"
 
-  # fnm
+  # fnm / node / npm — 属于 node 模块
   if check_command fnm; then
     _check_pass "fnm: $(fnm --version 2>/dev/null)"
-  else
+  elif _module_installed node; then
     _check_fail "fnm: 未安装"
+  else
+    _check_warn "fnm: 未安装（node 模块未选中）"
   fi
 
-  # Node.js
   if check_command node; then
     local node_ver
     node_ver=$(node --version 2>/dev/null)
@@ -39,46 +49,50 @@ _verify_versions() {
     else
       _check_warn "node: $node_ver (< 20, 部分工具可能不兼容)"
     fi
-  else
+  elif _module_installed node; then
     _check_fail "node: 未安装"
+  else
+    _check_warn "node: 未安装（node 模块未选中）"
   fi
 
-  # npm
   if check_command npm; then
     _check_pass "npm: $(npm --version 2>/dev/null)"
-  else
+  elif _module_installed node; then
     _check_fail "npm: 未安装"
+  else
+    _check_warn "npm: 未安装（node 模块未选中）"
   fi
 
-  # pnpm
+  # pnpm / bun — 可选子组件
   if check_command pnpm; then
     _check_pass "pnpm: $(pnpm --version 2>/dev/null)"
   else
     _check_warn "pnpm: 未安装"
   fi
 
-  # bun
   if check_command bun; then
     _check_pass "bun: $(bun --version 2>/dev/null)"
   else
     _check_warn "bun: 未安装"
   fi
 
-  # uv
+  # uv — 属于 python 模块
   if check_command uv; then
     _check_pass "uv: $(uv --version 2>/dev/null)"
-  else
+  elif _module_installed python; then
     _check_fail "uv: 未安装"
+  else
+    _check_warn "uv: 未安装（python 模块未选中）"
   fi
 
-  # Docker
+  # Docker — 属于 docker 模块
   if check_command docker; then
     _check_pass "docker: $(docker --version 2>/dev/null | head -1)"
   else
     _check_warn "docker: 未安装（可选模块）"
   fi
 
-  # AI 工具
+  # AI 工具 — 属于 ai-tools 模块（始终 warn，不 fail）
   for tool in claude opencode codex gemini; do
     if check_command "$tool"; then
       _check_pass "$tool: 已安装"
@@ -127,7 +141,7 @@ _verify_policies() {
   if check_command corepack; then
     # 检查 corepack 是否被用来管理 pnpm
     local corepack_pnpm
-    corepack_pnpm=$(corepack ls 2>/dev/null | grep -c "pnpm" || echo "0")
+    corepack_pnpm=$(corepack ls 2>/dev/null | grep -c "pnpm" 2>/dev/null) || corepack_pnpm=0
     if [[ "$corepack_pnpm" -gt 0 ]]; then
       _check_warn "Corepack: 检测到 corepack 管理 pnpm（Node 25+ 将不再内置 corepack）"
     else
@@ -230,12 +244,14 @@ _generate_json_report() {
 # ─── 主验证函数 ────────────────────────────────────────────────────────────────
 run_verify() {
   local report_json="${1:-}"
+  local installed_modules="${2:-}"
 
   # 重置全局状态，避免多次调用时结果累积
   _VERIFY_RESULTS=()
   _VERIFY_PASS=0
   _VERIFY_WARN=0
   _VERIFY_FAIL=0
+  _VERIFY_MODULES="$installed_modules"
 
   log_step "安装验证 / Verify"
   print_separator
