@@ -333,6 +333,10 @@ cmd_apply() {
   echo "╚══════════════════════════════════════════════════════════╝"
   echo ""
 
+  # 日志记录
+  setup_logging
+  log_info "日志文件: $LOG_FILE"
+
   # 预检
   check_ubuntu || exit 1
   ensure_sudo  || exit 1
@@ -374,6 +378,10 @@ cmd_apply() {
   echo ""
   source "$BOOTSTRAP_DIR/modules/verify.sh"
   run_verify "$REPORT_JSON" "${modules[*]}"
+
+  # 日志提示
+  echo ""
+  log_info "完整日志已保存: $LOG_FILE"
 }
 
 # ─── 子命令: doctor ────────────────────────────────────────────────────────────

@@ -38,14 +38,14 @@ install_node() {
       fnm_url=$(github_url "https://github.com/Schniz/fnm/releases/latest/download/fnm-${arch}.zip")
       local tmp_dir
       tmp_dir=$(mktemp -d)
-      curl -fsSL "$fnm_url" -o "$tmp_dir/fnm.zip" || { rm -rf "$tmp_dir"; return 1; }
+      curl_download "$fnm_url" "$tmp_dir/fnm.zip" || { rm -rf "$tmp_dir"; return 1; }
       unzip -q "$tmp_dir/fnm.zip" -d "$tmp_dir"
       mkdir -p "${HOME}/.local/share/fnm"
       mv "$tmp_dir/fnm" "${HOME}/.local/share/fnm/fnm"
       chmod +x "${HOME}/.local/share/fnm/fnm"
       rm -rf "$tmp_dir"
     else
-      curl -fsSL "$fnm_install_url" | bash
+      curl_pipe "$fnm_install_url" bash
     fi
 
     # fnm 安装到 ~/.local/share/fnm
@@ -124,7 +124,7 @@ install_node() {
     bun_url=$(github_url "https://github.com/oven-sh/bun/releases/latest/download/${bun_arch}.zip")
     local tmp_dir
     tmp_dir=$(mktemp -d)
-    curl -fsSL "$bun_url" -o "$tmp_dir/bun.zip" || { rm -rf "$tmp_dir"; return 1; }
+    curl_download "$bun_url" "$tmp_dir/bun.zip" || { rm -rf "$tmp_dir"; return 1; }
     unzip -q "$tmp_dir/bun.zip" -d "$tmp_dir"
     mkdir -p "${HOME}/.bun/bin"
     mv "$tmp_dir/${bun_arch}/bun" "${HOME}/.bun/bin/bun"

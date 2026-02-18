@@ -22,7 +22,7 @@ install_python() {
   else
     log_info "安装 uv..."
     # astral.sh 国内通常可达，不需要代理
-    curl -LsSf https://astral.sh/uv/install.sh | sh
+    curl_pipe "https://astral.sh/uv/install.sh" sh
 
     # uv 安装到 ~/.local/bin
     export PATH="${HOME}/.local/bin:${PATH}"

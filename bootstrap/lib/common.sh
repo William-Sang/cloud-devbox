@@ -161,3 +161,73 @@ check_url() {
   local timeout="${2:-5}"
   curl --connect-timeout "$timeout" -fsSL -o /dev/null "$url" 2>/dev/null
 }
+
+# ─── 带重试的文件下载 ────────────────────────────────────────────────────────
+# 用法: curl_download <url> <output_file> [max_retries]
+# 返回: 0=成功, 1=所有重试均失败
+curl_download() {
+  local url="$1"
+  local output="$2"
+  local max_retries="${3:-3}"
+  local attempt=1
+  local wait_sec=2
+
+  while [[ $attempt -le $max_retries ]]; do
+    if curl -fsSL "$url" -o "$output" 2>/dev/null; then
+      return 0
+    fi
+    if [[ $attempt -lt $max_retries ]]; then
+      log_warn "下载失败 (${attempt}/${max_retries})，${wait_sec}s 后重试..."
+      sleep "$wait_sec"
+      wait_sec=$((wait_sec * 2))
+    fi
+    attempt=$((attempt + 1))
+  done
+
+  log_error "下载失败（已重试 ${max_retries} 次）: $url"
+  return 1
+}
+
+# ─── 带重试的下载 + 管道执行 ──────────────────────────────────────────────────
+# 用法: curl_pipe <url> <command...>
+#   例: curl_pipe "https://example.com/install.sh" bash
+#   例: curl_pipe "https://example.com/gpg" sudo gpg --dearmor -o /path/to/file
+# 先下载到临时文件（带重试），再将内容管道到指定命令。
+curl_pipe() {
+  local url="$1"
+  shift
+  local tmp_file
+  tmp_file=$(mktemp)
+
+  if ! curl_download "$url" "$tmp_file"; then
+    rm -f "$tmp_file"
+    return 1
+  fi
+
+  "$@" < "$tmp_file"
+  local rc=$?
+  rm -f "$tmp_file"
+  return $rc
+}
+
+# ─── 日志文件设置 ────────────────────────────────────────────────────────────
+# 用法: setup_logging
+# 在 cmd_apply() 开头调用。所有后续输出同时写入终端和日志文件。
+LOG_FILE=""
+
+setup_logging() {
+  local log_dir="${HOME}/.config/init-devbox/logs"
+  mkdir -p "$log_dir"
+
+  LOG_FILE="${log_dir}/install-$(date '+%Y%m%d-%H%M%S').log"
+
+  # stdout + stderr 同时写入终端和日志文件
+  exec > >(tee -a "$LOG_FILE") 2>&1
+
+  # 清理旧日志：保留最近 5 个
+  local -a old_logs
+  mapfile -t old_logs < <(ls -1t "$log_dir"/install-*.log 2>/dev/null | tail -n +6)
+  if [[ ${#old_logs[@]} -gt 0 ]]; then
+    rm -f "${old_logs[@]}"
+  fi
+}

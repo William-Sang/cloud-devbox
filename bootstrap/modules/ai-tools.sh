@@ -21,7 +21,7 @@ _install_claude_code() {
     return 0
   fi
   log_info "安装 Claude Code..."
-  curl -fsSL https://claude.ai/install.sh | bash
+  curl_pipe "https://claude.ai/install.sh" bash
   # Claude Code 安装到 ~/.local/bin
   export PATH="${HOME}/.local/bin:${PATH}"
   log_success "Claude Code 安装完成。"
@@ -34,7 +34,7 @@ _install_opencode() {
   fi
   log_info "安装 OpenCode (sst/opencode)..."
   local install_url="https://opencode.ai/install"
-  curl -fsSL "$install_url" | bash
+  curl_pipe "$install_url" bash
   log_success "OpenCode 安装完成。"
 }
 

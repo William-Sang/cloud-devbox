@@ -37,7 +37,7 @@ install_docker() {
       gpg_url="${MIRROR_DOCKER_CE}/linux/ubuntu/gpg"
     fi
 
-    curl -fsSL "$gpg_url" | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    curl_pipe "$gpg_url" sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
     sudo chmod a+r /etc/apt/keyrings/docker.gpg
   fi
 
