@@ -38,7 +38,7 @@ install_node() {
       fnm_url=$(github_url "https://github.com/Schniz/fnm/releases/latest/download/fnm-${arch}.zip")
       local tmp_dir
       tmp_dir=$(mktemp -d)
-      curl -fsSL "$fnm_url" -o "$tmp_dir/fnm.zip"
+      curl -fsSL "$fnm_url" -o "$tmp_dir/fnm.zip" || { rm -rf "$tmp_dir"; return 1; }
       unzip -q "$tmp_dir/fnm.zip" -d "$tmp_dir"
       mkdir -p "${HOME}/.local/share/fnm"
       mv "$tmp_dir/fnm" "${HOME}/.local/share/fnm/fnm"
@@ -63,19 +63,28 @@ install_node() {
   eval "$(fnm env --use-on-cd --shell bash 2>/dev/null || true)"
 
   # ── Node.js LTS ─────────────────────────────────────────────────────────────
+  local node_lts
+  node_lts=$(config_get "node.lts" "" 2>/dev/null || echo "")
+
   if check_command node; then
     log_success "Node.js 已安装: $(node --version)"
   else
-    log_info "安装 Node.js LTS..."
-
     # 中国区域: 使用 npmmirror 的 Node 分发镜像
     if [[ -n "$MIRROR_FNM_NODE_DIST" ]]; then
       export FNM_NODE_DIST_MIRROR="$MIRROR_FNM_NODE_DIST"
     fi
 
-    fnm install --lts
-    fnm default lts-latest
-    fnm use lts-latest
+    if [[ -n "$node_lts" ]]; then
+      log_info "安装 Node.js $node_lts..."
+      fnm install "$node_lts"
+      fnm default "$node_lts"
+      fnm use "$node_lts"
+    else
+      log_info "安装 Node.js LTS..."
+      fnm install --lts
+      fnm default lts-latest
+      fnm use lts-latest
+    fi
 
     log_success "Node.js 安装完成: $(node --version)"
   fi
@@ -84,16 +93,22 @@ install_node() {
   eval "$(fnm env --shell bash 2>/dev/null || true)"
 
   # ── pnpm（不使用 Corepack，直接 npm install）────────────────────────────────
-  if check_command pnpm; then
-    log_success "pnpm 已安装: $(pnpm --version)"
+  if config_is_true "node.package_managers.pnpm" 2>/dev/null; then
+    if check_command pnpm; then
+      log_success "pnpm 已安装: $(pnpm --version)"
+    else
+      log_info "安装 pnpm..."
+      npm install -g pnpm
+      log_success "pnpm 安装完成: $(pnpm --version)"
+    fi
   else
-    log_info "安装 pnpm..."
-    npm install -g pnpm
-    log_success "pnpm 安装完成: $(pnpm --version)"
+    log_dim "pnpm 安装已跳过（config: node.package_managers.pnpm = false）"
   fi
 
   # ── bun ──────────────────────────────────────────────────────────────────────
-  if check_command bun; then
+  if ! config_is_true "node.package_managers.bun" 2>/dev/null; then
+    log_dim "bun 安装已跳过（config: node.package_managers.bun = false）"
+  elif check_command bun; then
     log_success "bun 已安装: $(bun --version)"
   else
     log_info "安装 bun..."
@@ -112,7 +127,7 @@ install_node() {
       bun_url=$(github_url "https://github.com/oven-sh/bun/releases/latest/download/${bun_arch}.zip")
       local tmp_dir
       tmp_dir=$(mktemp -d)
-      curl -fsSL "$bun_url" -o "$tmp_dir/bun.zip"
+      curl -fsSL "$bun_url" -o "$tmp_dir/bun.zip" || { rm -rf "$tmp_dir"; return 1; }
       unzip -q "$tmp_dir/bun.zip" -d "$tmp_dir"
       mkdir -p "${HOME}/.bun/bin"
       mv "$tmp_dir/${bun_arch}/bun" "${HOME}/.bun/bin/bun"

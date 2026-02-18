@@ -127,6 +127,11 @@ install_ai_tools() {
   log_dim "  Codex CLI    — OpenAI API key 或 ChatGPT 订阅"
   log_dim "  Qoder CLI    — Qoder 账号（qoder.com）"
   log_dim "  Gemini CLI   — Google 账号（免费额度）或 GEMINI_API_KEY"
+
+  # 所有工具都失败时返回非零，让模块汇总正确标记 FAIL
+  if [[ ${#installed_tools[@]} -eq 0 && ${#failed_tools[@]} -gt 0 ]]; then
+    return 1
+  fi
 }
 
 # ─── 独立运行 ──────────────────────────────────────────────────────────────────

@@ -44,10 +44,9 @@ check_ubuntu() {
     return 1
   fi
 
+  # 读取 /etc/os-release 一次，避免多次子 shell
   local os_id os_version os_codename
-  os_id=$(. /etc/os-release && echo "$ID")
-  os_version=$(. /etc/os-release && echo "$VERSION_ID")
-  os_codename=$(. /etc/os-release && echo "$VERSION_CODENAME")
+  eval "$(. /etc/os-release && printf 'os_id=%s\nos_version=%s\nos_codename=%s\n' "$ID" "$VERSION_ID" "$VERSION_CODENAME")"
 
   if [[ "$os_id" != "ubuntu" ]]; then
     log_error "此脚本仅支持 Ubuntu，当前系统: $os_id"

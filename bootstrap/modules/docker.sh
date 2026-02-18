@@ -107,6 +107,7 @@ EOF
   sudo systemctl enable docker 2>/dev/null || true
   sudo systemctl start docker 2>/dev/null || true
 
+  unset DEBIAN_FRONTEND
   log_success "Docker 安装完成: $(docker --version)"
   log_warn "需要重新登录 shell 才能不加 sudo 使用 docker。"
 }

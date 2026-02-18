@@ -18,8 +18,9 @@ source "$BOOTSTRAP_DIR/lib/config.sh"
 # shellcheck source=lib/region.sh
 source "$BOOTSTRAP_DIR/lib/region.sh"
 
-# ─── EXIT trap ─────────────────────────────────────────────────────────────────
-trap 'echo ""; echo "[${SCRIPT_NAME}] 总耗时: $(show_duration ${SCRIPT_START_TIME})"' EXIT
+# ─── EXIT trap（仅在实际执行子命令时打印耗时）──────────────────────────────────
+_SHOW_DURATION=false
+trap '[[ "$_SHOW_DURATION" == true ]] && echo "" && echo "[${SCRIPT_NAME}] 总耗时: $(show_duration ${SCRIPT_START_TIME})"' EXIT
 
 # ─── 模块定义 ──────────────────────────────────────────────────────────────────
 MODULE_ORDER=(mirror base docker node python ai-tools shell-config)
@@ -166,7 +167,7 @@ show_interactive_menu() {
       local marker="[ ]"
       [[ "$status" == "on" ]] && marker="[x]"
       printf "  %d) %s %-14s %s\n" "$((i+1))" "$marker" "$mod" "${MODULE_DESC[$mod]}"
-      ((i++))
+      i=$((i + 1))
     done
     echo ""
     read -r -p "选择 (或回车继续): " choice
@@ -193,7 +194,7 @@ show_interactive_menu() {
   local i=0
   for mod in "${MODULE_ORDER[@]}"; do
     [[ "${selections[$i]}" == "on" ]] && result+=("$mod")
-    ((i++))
+    i=$((i + 1))
   done
   echo "${result[*]}"
 }
@@ -247,7 +248,7 @@ run_modules() {
 
   for mod in "${MODULE_ORDER[@]}"; do
     if [[ " ${modules[*]} " == *" ${mod} "* ]]; then
-      ((current++))
+      current=$((current + 1))
       local mod_start
       mod_start=$(date +%s)
 
@@ -299,10 +300,10 @@ run_modules() {
 
     if [[ "$status" == "OK" ]]; then
       printf "  %-14s ${_C_GREEN}%-8s${_C_RESET} %s\n" "$mod" "OK" "$dur"
-      ((ok_count++))
+      ok_count=$((ok_count + 1))
     else
       printf "  %-14s ${_C_RED}%-8s${_C_RESET} %s\n" "$mod" "FAIL" "$dur"
-      ((fail_count++))
+      fail_count=$((fail_count + 1))
     fi
   done
 
@@ -319,6 +320,7 @@ run_modules() {
 
 # ─── 子命令: apply ─────────────────────────────────────────────────────────────
 cmd_apply() {
+  _SHOW_DURATION=true
   echo ""
   echo "╔══════════════════════════════════════════════════════════╗"
   echo "║       init-devbox — Ubuntu 全栈开发环境初始化工具       ║"
@@ -365,11 +367,12 @@ cmd_apply() {
   # 自动运行验证
   echo ""
   source "$BOOTSTRAP_DIR/modules/verify.sh"
-  run_verify ""
+  run_verify "$REPORT_JSON"
 }
 
 # ─── 子命令: doctor ────────────────────────────────────────────────────────────
 cmd_doctor() {
+  _SHOW_DURATION=true
   echo ""
   echo "╔══════════════════════════════════════════════════════════╗"
   echo "║               init-devbox doctor — 系统预检             ║"
@@ -389,6 +392,7 @@ cmd_doctor() {
 
 # ─── 子命令: verify ────────────────────────────────────────────────────────────
 cmd_verify() {
+  _SHOW_DURATION=true
   echo ""
   echo "╔══════════════════════════════════════════════════════════╗"
   echo "║             init-devbox verify — 安装验证               ║"

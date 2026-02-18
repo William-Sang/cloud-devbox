@@ -55,7 +55,7 @@ _setup_apt_mirror() {
   # Ubuntu 24.04 使用 DEB822 格式
   if [[ -f /etc/apt/sources.list.d/ubuntu.sources ]]; then
     local sources_file="/etc/apt/sources.list.d/ubuntu.sources"
-    if grep -q "mirrors.aliyun.com" "$sources_file" 2>/dev/null; then
+    if grep -q "${MIRROR_APT}" "$sources_file" 2>/dev/null; then
       log_dim "apt 镜像已配置，跳过。"
       return 0
     fi
@@ -64,7 +64,7 @@ _setup_apt_mirror() {
     sudo sed -i "s|http://security.ubuntu.com|${MIRROR_APT}|g" "$sources_file"
   # Ubuntu 22.04 使用传统 sources.list
   elif [[ -f /etc/apt/sources.list ]]; then
-    if grep -q "mirrors.aliyun.com" /etc/apt/sources.list 2>/dev/null; then
+    if grep -q "${MIRROR_APT}" /etc/apt/sources.list 2>/dev/null; then
       log_dim "apt 镜像已配置，跳过。"
       return 0
     fi
@@ -122,11 +122,25 @@ _setup_pypi_mirror() {
   if [[ -f "$uv_config_file" ]] && grep -q "$MIRROR_PYPI" "$uv_config_file" 2>/dev/null; then
     log_dim "uv PyPI 镜像已配置，跳过。"
   else
-    cat > "$uv_config_file" <<EOF
+    # 保留已有配置，仅追加/替换 index 配置
+    if [[ -f "$uv_config_file" ]] && grep -q '^\[\[index\]\]' "$uv_config_file" 2>/dev/null; then
+      # 已有 index 配置，用 sed 替换 url 行
+      sed -i '/^\[\[index\]\]/,/^$/{s|^url = .*|url = "'"${MIRROR_PYPI}"'"|;}' "$uv_config_file"
+    elif [[ -f "$uv_config_file" ]]; then
+      # 已有文件但无 index 配置，追加
+      cat >> "$uv_config_file" <<EOF
+
 [[index]]
 url = "${MIRROR_PYPI}"
 default = true
 EOF
+    else
+      cat > "$uv_config_file" <<EOF
+[[index]]
+url = "${MIRROR_PYPI}"
+default = true
+EOF
+    fi
     log_success "uv 镜像已配置: $MIRROR_PYPI"
   fi
 
@@ -138,11 +152,24 @@ EOF
   if [[ -f "$pip_config_file" ]] && grep -q "$MIRROR_PYPI" "$pip_config_file" 2>/dev/null; then
     log_dim "pip PyPI 镜像已配置，跳过。"
   else
-    cat > "$pip_config_file" <<EOF
+    # 保留已有配置，仅更新 [global] 中的 index-url
+    if [[ -f "$pip_config_file" ]] && grep -q '^\[global\]' "$pip_config_file" 2>/dev/null; then
+      sed -i "s|^index-url = .*|index-url = ${MIRROR_PYPI}|" "$pip_config_file"
+      sed -i "s|^trusted-host = .*|trusted-host = ${MIRROR_PYPI_TRUSTED_HOST}|" "$pip_config_file"
+    elif [[ -f "$pip_config_file" ]]; then
+      cat >> "$pip_config_file" <<EOF
+
 [global]
 index-url = ${MIRROR_PYPI}
 trusted-host = ${MIRROR_PYPI_TRUSTED_HOST}
 EOF
+    else
+      cat > "$pip_config_file" <<EOF
+[global]
+index-url = ${MIRROR_PYPI}
+trusted-host = ${MIRROR_PYPI_TRUSTED_HOST}
+EOF
+    fi
     log_success "pip 镜像已配置: $MIRROR_PYPI"
   fi
 }

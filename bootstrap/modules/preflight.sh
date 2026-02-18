@@ -18,19 +18,19 @@ run_preflight() {
 
   # 1. OS 检测
   if check_ubuntu; then
-    ((pass++))
+    pass=$((pass + 1))
   else
-    ((fail++))
+    fail=$((fail + 1))
     log_error "不支持的操作系统"
   fi
 
   # 2. sudo 权限
   if [[ $EUID -eq 0 ]] || sudo -n true 2>/dev/null; then
     log_success "sudo 权限: 可用"
-    ((pass++))
+    pass=$((pass + 1))
   else
     log_warn "sudo 权限: 需要输入密码"
-    ((warn++))
+    warn=$((warn + 1))
   fi
 
   # 3. 磁盘空间
@@ -38,26 +38,30 @@ run_preflight() {
   avail_gb=$(df -BG --output=avail / 2>/dev/null | tail -1 | tr -d ' G')
   if [[ -n "$avail_gb" ]] && [[ "$avail_gb" -ge 5 ]]; then
     log_success "磁盘空间: ${avail_gb}GB 可用 (>= 5GB)"
-    ((pass++))
+    pass=$((pass + 1))
   elif [[ -n "$avail_gb" ]]; then
     log_error "磁盘空间: ${avail_gb}GB 可用 (< 5GB 不足)"
-    ((fail++))
+    fail=$((fail + 1))
   else
     log_warn "磁盘空间: 无法检测"
-    ((warn++))
+    warn=$((warn + 1))
   fi
 
-  # 4. 网络连通性
+  # 4. 网络连通性（根据区域或缓存选择测试 URL）
   local test_url="https://www.google.com"
-  if [[ "${REGION:-}" == "cn" ]]; then
+  local cached_region="${REGION:-}"
+  if [[ -z "$cached_region" && -f "${HOME}/.config/init-devbox/region" ]]; then
+    cached_region=$(cat "${HOME}/.config/init-devbox/region")
+  fi
+  if [[ "$cached_region" == "cn" ]]; then
     test_url="https://mirrors.aliyun.com"
   fi
   if check_url "$test_url" 5; then
     log_success "网络连通: $test_url 可达"
-    ((pass++))
+    pass=$((pass + 1))
   else
     log_warn "网络连通: $test_url 不可达（可能影响安装）"
-    ((warn++))
+    warn=$((warn + 1))
   fi
 
   # 5. 区域设置
@@ -78,16 +82,8 @@ run_preflight() {
   for tool in "${tools[@]}"; do
     if check_command "$tool"; then
       local ver
-      case "$tool" in
-        node)    ver=$(node --version 2>/dev/null) ;;
-        python3) ver=$(python3 --version 2>/dev/null) ;;
-        docker)  ver=$(docker --version 2>/dev/null | head -1) ;;
-        fnm)     ver=$(fnm --version 2>/dev/null) ;;
-        uv)      ver=$(uv --version 2>/dev/null) ;;
-        pnpm)    ver=$(pnpm --version 2>/dev/null) ;;
-        bun)     ver=$(bun --version 2>/dev/null) ;;
-        *)       ver="已安装" ;;
-      esac
+      ver=$("$tool" --version 2>/dev/null | head -1) || ver="已安装"
+      [[ -z "$ver" ]] && ver="已安装"
       log_success "$tool: $ver"
     else
       log_dim "$tool: 未安装"

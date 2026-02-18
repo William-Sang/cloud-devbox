@@ -21,7 +21,7 @@ check_base() {
     # ripgrep 的二进制名为 rg
     local bin="$cmd"
     [[ "$cmd" == "ripgrep" ]] && bin="rg"
-    check_command "$bin" || ((missing++))
+    check_command "$bin" || missing=$((missing + 1))
   done
   [[ $missing -eq 0 ]]
 }
@@ -40,12 +40,10 @@ install_base() {
   log_info "更新软件包索引..."
   sudo apt-get update -qq
 
-  log_info "升级已安装的软件包..."
-  sudo apt-get upgrade -y -qq
-
   log_info "安装基础工具: ${BASE_PACKAGES[*]}"
   sudo apt-get install -y -qq "${BASE_PACKAGES[@]}"
 
+  unset DEBIAN_FRONTEND
   log_success "基础工具安装完成。"
 }
 

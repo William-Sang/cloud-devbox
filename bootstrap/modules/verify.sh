@@ -13,9 +13,9 @@ _VERIFY_PASS=0
 _VERIFY_WARN=0
 _VERIFY_FAIL=0
 
-_check_pass() { log_success "$1"; ((_VERIFY_PASS++)); _VERIFY_RESULTS+=("PASS|$1"); }
-_check_warn() { log_warn "$1";    ((_VERIFY_WARN++)); _VERIFY_RESULTS+=("WARN|$1"); }
-_check_fail() { log_error "$1";   ((_VERIFY_FAIL++)); _VERIFY_RESULTS+=("FAIL|$1"); }
+_check_pass() { log_success "$1"; _VERIFY_PASS=$((_VERIFY_PASS + 1)); _VERIFY_RESULTS+=("PASS|$1"); }
+_check_warn() { log_warn "$1";    _VERIFY_WARN=$((_VERIFY_WARN + 1)); _VERIFY_RESULTS+=("WARN|$1"); }
+_check_fail() { log_error "$1";   _VERIFY_FAIL=$((_VERIFY_FAIL + 1)); _VERIFY_RESULTS+=("FAIL|$1"); }
 
 # ─── 版本检查 ─────────────────────────────────────────────────────────────────
 _verify_versions() {
@@ -162,7 +162,7 @@ _verify_policies() {
 
     # uv index
     local uv_toml="${HOME}/.config/uv/uv.toml"
-    if [[ -f "$uv_toml" ]] && grep -q "aliyun\|tuna" "$uv_toml" 2>/dev/null; then
+    if [[ -f "$uv_toml" ]] && grep -q "aliyun\|tuna\|ustc\|bfsu\|npmmirror" "$uv_toml" 2>/dev/null; then
       _check_pass "PyPI 镜像: 已配置国内源"
     elif [[ -f "$uv_toml" ]]; then
       _check_warn "PyPI 镜像: uv.toml 存在但未配置国内源"
@@ -173,37 +173,69 @@ _verify_policies() {
 # ─── 生成 JSON 报告 ───────────────────────────────────────────────────────────
 _generate_json_report() {
   local report_file="$1"
-  local json="{"
-  json+="\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\","
-  json+="\"region\":\"${REGION:-unknown}\","
-  json+="\"ubuntu_version\":\"${UBUNTU_VERSION_ID:-unknown}\","
-  json+="\"summary\":{\"pass\":${_VERIFY_PASS},\"warn\":${_VERIFY_WARN},\"fail\":${_VERIFY_FAIL}},"
-  json+="\"checks\":["
 
-  local first=true
-  for result in "${_VERIFY_RESULTS[@]}"; do
-    local status="${result%%|*}"
-    local msg="${result#*|}"
-    if [[ "$first" == true ]]; then
-      first=false
-    else
-      json+=","
-    fi
-    # 转义 JSON 字符串中的特殊字符
-    msg="${msg//\\/\\\\}"
-    msg="${msg//\"/\\\"}"
-    json+="{\"status\":\"${status}\",\"message\":\"${msg}\"}"
-  done
+  # 优先使用 jq 生成合法 JSON（自动处理转义）
+  if check_command jq; then
+    local checks_json="[]"
+    for result in "${_VERIFY_RESULTS[@]}"; do
+      local status="${result%%|*}"
+      local msg="${result#*|}"
+      checks_json=$(echo "$checks_json" | jq \
+        --arg s "$status" --arg m "$msg" \
+        '. + [{"status": $s, "message": $m}]')
+    done
 
-  json+="]}"
+    jq -n \
+      --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      --arg region "${REGION:-unknown}" \
+      --arg ubuntu "${UBUNTU_VERSION_ID:-unknown}" \
+      --argjson pass "$_VERIFY_PASS" \
+      --argjson warn "$_VERIFY_WARN" \
+      --argjson fail "$_VERIFY_FAIL" \
+      --argjson checks "$checks_json" \
+      '{timestamp: $ts, region: $region, ubuntu_version: $ubuntu, summary: {pass: $pass, warn: $warn, fail: $fail}, checks: $checks}' \
+      > "$report_file"
+  else
+    # jq 不可用时回退到手动拼接
+    local json="{"
+    json+="\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\","
+    json+="\"region\":\"${REGION:-unknown}\","
+    json+="\"ubuntu_version\":\"${UBUNTU_VERSION_ID:-unknown}\","
+    json+="\"summary\":{\"pass\":${_VERIFY_PASS},\"warn\":${_VERIFY_WARN},\"fail\":${_VERIFY_FAIL}},"
+    json+="\"checks\":["
 
-  echo "$json" > "$report_file"
+    local first=true
+    for result in "${_VERIFY_RESULTS[@]}"; do
+      local status="${result%%|*}"
+      local msg="${result#*|}"
+      if [[ "$first" == true ]]; then
+        first=false
+      else
+        json+=","
+      fi
+      msg="${msg//\\/\\\\}"
+      msg="${msg//\"/\\\"}"
+      msg="${msg//$'\t'/\\t}"
+      msg="${msg//$'\n'/\\n}"
+      json+="{\"status\":\"${status}\",\"message\":\"${msg}\"}"
+    done
+
+    json+="]}"
+    echo "$json" > "$report_file"
+  fi
+
   log_info "JSON 报告已导出: $report_file"
 }
 
 # ─── 主验证函数 ────────────────────────────────────────────────────────────────
 run_verify() {
   local report_json="${1:-}"
+
+  # 重置全局状态，避免多次调用时结果累积
+  _VERIFY_RESULTS=()
+  _VERIFY_PASS=0
+  _VERIFY_WARN=0
+  _VERIFY_FAIL=0
 
   log_step "安装验证 / Verify"
   print_separator

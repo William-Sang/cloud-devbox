@@ -44,7 +44,7 @@ install_python() {
 
   # ── 安装 Python 版本 ────────────────────────────────────────────────────────
   for ver in $python_versions; do
-    if uv python list --only-installed 2>/dev/null | grep -q "cpython-${ver}"; then
+    if uv python list --only-installed 2>/dev/null | grep -q "cpython-${ver}[^0-9]"; then
       log_success "Python $ver 已安装。"
     else
       log_info "安装 Python $ver..."
@@ -64,7 +64,7 @@ install_python() {
   log_dim "  uv:     $(uv --version 2>/dev/null || echo 'N/A')"
   for ver in $python_versions; do
     local full_ver
-    full_ver=$(uv python list --only-installed 2>/dev/null | grep "cpython-${ver}" | head -1 | awk '{print $1}' || echo "$ver")
+    full_ver=$(uv python list --only-installed 2>/dev/null | grep "cpython-${ver}[^0-9]" | head -1 | awk '{print $1}' || echo "$ver")
     log_dim "  python: $full_ver"
   done
   log_dim "  默认:   Python $python_default"

@@ -57,8 +57,14 @@ _read_region_cache() {
 
 # ─── 写入区域缓存 ─────────────────────────────────────────────────────────────
 _write_region_cache() {
+  local value="$1"
+  # 仅允许合法的区域值
+  case "$value" in
+    cn|overseas) ;;
+    *) value="overseas" ;;
+  esac
   mkdir -p "$_REGION_CACHE_DIR"
-  echo "$1" > "$_REGION_CACHE_FILE"
+  echo "$value" > "$_REGION_CACHE_FILE"
 }
 
 # ─── 交互式询问区域 ───────────────────────────────────────────────────────────
@@ -150,7 +156,9 @@ resolve_region() {
 github_url() {
   local url="$1"
   if [[ -n "$MIRROR_GITHUB_PROXY" ]]; then
-    echo "${MIRROR_GITHUB_PROXY}${url}"
+    # 确保代理 URL 以 / 结尾
+    local proxy="${MIRROR_GITHUB_PROXY%/}/"
+    echo "${proxy}${url}"
   else
     echo "$url"
   fi

@@ -12,15 +12,12 @@ default = "3.12"
 
 [node]
 manager = "fnm"
-lts = "22"
+# 指定 Node.js 版本号（如 "22"），留空则安装最新 LTS
+lts = ""
 
 [node.package_managers]
 pnpm = true
 bun = true
-
-[typescript]
-# 不全局安装 typescript，项目本地依赖优先
-global = false
 
 [docker]
 # "group"（默认，添加用户到 docker 组）或 "rootless"
@@ -34,4 +31,3 @@ pypi = ""
 docker_ce = ""
 docker_hub = ""
 github_proxy = ""
-fallback_to_official = true

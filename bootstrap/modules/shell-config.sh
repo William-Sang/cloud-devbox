@@ -40,7 +40,10 @@ install_shell_config() {
 
   git config --global color.ui auto 2>/dev/null || true
   git config --global init.defaultBranch main 2>/dev/null || true
-  git config --global core.editor vim 2>/dev/null || true
+  # 仅在未配置时设置默认编辑器，避免覆盖用户偏好
+  if [[ -z "$(git config --global core.editor 2>/dev/null)" ]]; then
+    git config --global core.editor vim 2>/dev/null || true
+  fi
   git config --global pull.rebase false 2>/dev/null || true
 
   # 不覆盖已有的 user.name/user.email
