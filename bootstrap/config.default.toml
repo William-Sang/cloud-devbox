@@ -1,0 +1,37 @@
+# init-devbox 默认配置
+# 复制为 config.toml 进行自定义，自定义值会覆盖此文件中的默认值
+
+[region]
+# "cn" | "overseas" | ""（空则交互询问）
+value = ""
+
+[python]
+manager = "uv"
+versions = ["3.12", "3.13"]
+default = "3.12"
+
+[node]
+manager = "fnm"
+lts = "22"
+
+[node.package_managers]
+pnpm = true
+bun = true
+
+[typescript]
+# 不全局安装 typescript，项目本地依赖优先
+global = false
+
+[docker]
+# "group"（默认，添加用户到 docker 组）或 "rootless"
+mode = "group"
+
+[mirrors]
+# 留空 = 根据 region 自动填充；手动填写则覆盖 region 预设
+apt = ""
+npm = ""
+pypi = ""
+docker_ce = ""
+docker_hub = ""
+github_proxy = ""
+fallback_to_official = true

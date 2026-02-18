@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# install.sh — 远程一键安装入口（curl | bash）
+# 用法：
+#   curl -fsSL https://raw.githubusercontent.com/William-Sang/cloud-devbox/main/bootstrap/install.sh | bash
+#   curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/William-Sang/cloud-devbox/main/bootstrap/install.sh | bash -s -- --region cn
+set -euo pipefail
+
+REPO_URL="https://github.com/William-Sang/cloud-devbox.git"
+INSTALL_DIR="${HOME}/.local/share/init-devbox"
+SCRIPT_NAME="install.sh"
+
+# ─── 解析 --region 参数 ────────────────────────────────────────────────────────
+REGION=""
+NEXT_IS_REGION=0
+for arg in "$@"; do
+  if [[ "$NEXT_IS_REGION" -eq 1 ]]; then
+    REGION="$arg"
+    NEXT_IS_REGION=0
+    continue
+  fi
+  case "$arg" in
+    --region=*) REGION="${arg#--region=}" ;;
+    --region)   NEXT_IS_REGION=1 ;;
+  esac
+done
+
+# 中国区域：git clone 通过代理
+if [[ "$REGION" == "cn" ]]; then
+  REPO_URL="https://ghfast.top/https://github.com/William-Sang/cloud-devbox.git"
+fi
+
+echo ""
+echo "╔══════════════════════════════════════════════════════════╗"
+echo "║       init-devbox — Ubuntu 全栈开发环境初始化工具       ║"
+echo "╚══════════════════════════════════════════════════════════╝"
+echo ""
+
+# ─── 确保 git 和 curl 可用 ─────────────────────────────────────────────────────
+for cmd in git curl; do
+  if ! command -v "$cmd" &>/dev/null; then
+    echo "[$SCRIPT_NAME] $cmd 未找到，正在安装..."
+    sudo apt-get update -qq && sudo apt-get install -y -qq "$cmd"
+  fi
+done
+
+# ─── 克隆或更新仓库 ────────────────────────────────────────────────────────────
+if [[ -d "$INSTALL_DIR/.git" ]]; then
+  echo "[$SCRIPT_NAME] 更新已有安装..."
+  git -C "$INSTALL_DIR" pull --ff-only --quiet 2>/dev/null || {
+    echo "[$SCRIPT_NAME] git pull 失败，重新克隆..."
+    rm -rf "$INSTALL_DIR"
+    git clone --depth 1 "$REPO_URL" "$INSTALL_DIR"
+  }
+else
+  echo "[$SCRIPT_NAME] 下载 init-devbox..."
+  mkdir -p "$(dirname "$INSTALL_DIR")"
+  git clone --depth 1 "$REPO_URL" "$INSTALL_DIR"
+fi
+
+echo "[$SCRIPT_NAME] 安装目录: $INSTALL_DIR"
+echo ""
+
+# ─── 启动安装 ──────────────────────────────────────────────────────────────────
+exec bash "$INSTALL_DIR/bootstrap/init-devbox.sh" apply "$@"
