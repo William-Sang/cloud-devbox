@@ -99,6 +99,67 @@ if ! command -v gcloud >/dev/null 2>&1; then
   exit 1
 fi
 
+# 0.3) 基于标签查找已有运行中的 devbox 实例
+EXISTING_INSTANCE=$(run_gcloud compute instances list \
+  --filter="labels.${LABEL_KEY}=${LABEL_VALUE} AND zone:${GCP_ZONE} AND status=RUNNING" \
+  --format='value(name)' \
+  --limit=1 2>/dev/null || true)
+
+if [[ -n "$EXISTING_INSTANCE" ]]; then
+  # 一次 describe 拿到所有需要的信息
+  INSTANCE_INFO=$(run_gcloud compute instances describe "$EXISTING_INSTANCE" --zone "$GCP_ZONE" \
+    --format='csv[no-heading](status,machineType.basename(),networkInterfaces[0].accessConfigs[0].natIP,creationTimestamp,scheduling.maxRunDuration.seconds)' 2>/dev/null || true)
+
+  if [[ -n "$INSTANCE_INFO" ]]; then
+    IFS=',' read -r EX_STATUS EX_MACHINE_TYPE EX_IP EX_CREATED EX_MAX_SECONDS <<< "$INSTANCE_INFO"
+
+    # 计算剩余时长
+    REMAINING_STR="未知"
+    TOTAL_STR=""
+    if [[ -n "$EX_MAX_SECONDS" && "$EX_MAX_SECONDS" =~ ^[0-9]+$ ]]; then
+      TOTAL_HOURS=$((EX_MAX_SECONDS / 3600))
+      TOTAL_REMAINING_MINS=$(( (EX_MAX_SECONDS % 3600) / 60 ))
+      if [[ $TOTAL_REMAINING_MINS -gt 0 ]]; then
+        TOTAL_STR="共 ${TOTAL_HOURS}h ${TOTAL_REMAINING_MINS}m"
+      else
+        TOTAL_STR="共 ${TOTAL_HOURS}h"
+      fi
+
+      if [[ -n "$EX_CREATED" ]]; then
+        CREATED_EPOCH=$(date -d "$EX_CREATED" +%s 2>/dev/null || true)
+        if [[ -n "$CREATED_EPOCH" && "$CREATED_EPOCH" =~ ^[0-9]+$ ]]; then
+          NOW_EPOCH=$(date +%s)
+          DEADLINE=$((CREATED_EPOCH + EX_MAX_SECONDS))
+          REMAINING=$((DEADLINE - NOW_EPOCH))
+          if [[ $REMAINING -le 0 ]]; then
+            REMAINING_STR="即将到期"
+          else
+            REM_H=$((REMAINING / 3600))
+            REM_M=$(( (REMAINING % 3600) / 60 ))
+            REMAINING_STR="${REM_H}h ${REM_M}m"
+          fi
+        fi
+      fi
+    fi
+
+    REMAINING_DISPLAY="$REMAINING_STR"
+    if [[ -n "$TOTAL_STR" ]]; then
+      REMAINING_DISPLAY="$REMAINING_STR / $TOTAL_STR"
+    fi
+
+    echo ""
+    echo "[start] ✓ 已有实例运行中: $EXISTING_INSTANCE"
+    echo "状态：     ${EX_STATUS:-RUNNING}"
+    echo "外网 IP：  ${EX_IP:-N/A}"
+    echo "机器类型： ${EX_MACHINE_TYPE:-N/A}"
+    echo "剩余时长： ${REMAINING_DISPLAY}"
+    echo "SSH 连接： ssh ${SSH_USERNAME}@${EX_IP:-<IP>}"
+    echo "销毁实例： bash scripts/destroy-dev.sh"
+    echo ""
+    exit 0
+  fi
+fi
+
 # 0.5) 检查同名实例是否已存在
 if run_gcloud compute instances describe "$INSTANCE_NAME" --zone "$GCP_ZONE" >/dev/null 2>&1; then
   echo "[start] ❌ 实例 '$INSTANCE_NAME' 已存在。" >&2
