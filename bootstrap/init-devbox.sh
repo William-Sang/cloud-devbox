@@ -222,7 +222,8 @@ show_interactive_menu() {
     [[ "${selections[$i]}" == "on" ]] && result+=("$mod")
     i=$((i + 1))
   done
-  echo "${result[*]}"
+  # 通过全局变量返回结果，避免在 $() 子 shell 中运行导致 read 无法读取终端输入
+  _MENU_RESULT="${result[*]}"
 }
 
 # ─── 确定要安装的模块 ─────────────────────────────────────────────────────────
@@ -248,10 +249,9 @@ resolve_modules() {
       [[ "${MODULE_DEFAULT[$mod]}" == "on" ]] && selected_modules+=("$mod")
     done
   else
-    # 交互式菜单
-    local menu_result
-    menu_result=$(show_interactive_menu)
-    read -ra selected_modules <<< "$menu_result"
+    # 交互式菜单（直接调用，不在 $() 子 shell 中，确保 read 能访问终端）
+    show_interactive_menu
+    read -ra selected_modules <<< "$_MENU_RESULT"
   fi
 
   # 依赖强制: ai-tools 需要 node
@@ -262,7 +262,8 @@ resolve_modules() {
     fi
   fi
 
-  echo "${selected_modules[*]}"
+  # 通过全局变量返回，避免 $() 子 shell 导致内部交互式 read 失败
+  _RESOLVED_MODULES="${selected_modules[*]}"
 }
 
 # ─── 执行模块安装 ─────────────────────────────────────────────────────────────
@@ -372,9 +373,9 @@ cmd_apply() {
   [[ "$NON_INTERACTIVE" == true ]] && non_interactive_flag="true"
   resolve_region "$CLI_REGION" "$non_interactive_flag"
 
-  # 确定模块
-  local selected
-  selected=$(resolve_modules)
+  # 确定模块（直接调用，不在 $() 中，确保交互式菜单能正常读取终端输入）
+  resolve_modules
+  local selected="$_RESOLVED_MODULES"
 
   if [[ -z "$selected" ]]; then
     log_warn "未选择任何模块，退出。"

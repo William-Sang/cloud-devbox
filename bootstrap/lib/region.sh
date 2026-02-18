@@ -86,9 +86,10 @@ _ask_region() {
   echo ""
   local choice
   read -r -p "请输入 [1/2] (默认 2): " choice
+  # 通过全局变量返回，避免在 $() 子 shell 中调用时 read 无法读取终端输入
   case "$choice" in
-    1) echo "cn" ;;
-    *) echo "overseas" ;;
+    1) _ASK_REGION_RESULT="cn" ;;
+    *) _ASK_REGION_RESULT="overseas" ;;
   esac
 }
 
@@ -129,7 +130,8 @@ resolve_region() {
     if [[ "$non_interactive" == "true" ]] || [[ ! -t 0 ]]; then
       REGION="overseas"
     else
-      REGION=$(_ask_region)
+      _ask_region
+      REGION="$_ASK_REGION_RESULT"
       _write_region_cache "$REGION"
     fi
   fi
