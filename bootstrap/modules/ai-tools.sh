@@ -21,9 +21,16 @@ _install_claude_code() {
     return 0
   fi
   log_info "安装 Claude Code..."
-  curl_pipe "https://claude.ai/install.sh" bash
+  if ! curl_pipe "https://claude.ai/install.sh" bash; then
+    log_error "Claude Code 安装失败。"
+    return 1
+  fi
   # Claude Code 安装到 ~/.local/bin
   export PATH="${HOME}/.local/bin:${PATH}"
+  if ! check_command claude; then
+    log_error "Claude Code 安装失败: claude 命令未找到。"
+    return 1
+  fi
   log_success "Claude Code 安装完成。"
 }
 
@@ -34,7 +41,14 @@ _install_opencode() {
   fi
   log_info "安装 OpenCode (sst/opencode)..."
   local install_url="https://opencode.ai/install"
-  curl_pipe "$install_url" bash
+  if ! curl_pipe "$install_url" bash; then
+    log_error "OpenCode 安装失败。"
+    return 1
+  fi
+  if ! check_command opencode; then
+    log_error "OpenCode 安装失败: opencode 命令未找到。"
+    return 1
+  fi
   log_success "OpenCode 安装完成。"
 }
 
@@ -48,7 +62,10 @@ _install_codex() {
     return 1
   fi
   log_info "安装 OpenAI Codex CLI..."
-  npm install -g @openai/codex
+  if ! npm install -g @openai/codex; then
+    log_error "OpenAI Codex CLI 安装失败。"
+    return 1
+  fi
   log_success "OpenAI Codex CLI 安装完成。"
 }
 
@@ -62,7 +79,10 @@ _install_qoder() {
     return 1
   fi
   log_info "安装 Qoder CLI..."
-  npm install -g @qoder-ai/qodercli
+  if ! npm install -g @qoder-ai/qodercli; then
+    log_error "Qoder CLI 安装失败。"
+    return 1
+  fi
   log_success "Qoder CLI 安装完成。"
 }
 
@@ -85,7 +105,10 @@ _install_gemini() {
   fi
 
   log_info "安装 Google Gemini CLI..."
-  npm install -g @google/gemini-cli
+  if ! npm install -g @google/gemini-cli; then
+    log_error "Google Gemini CLI 安装失败。"
+    return 1
+  fi
   log_success "Google Gemini CLI 安装完成。"
 }
 

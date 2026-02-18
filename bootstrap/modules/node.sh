@@ -89,7 +89,10 @@ install_node() {
       log_success "pnpm 已安装: $(pnpm --version)"
     else
       log_info "安装 pnpm..."
-      npm install -g pnpm
+      if ! npm install -g pnpm; then
+        log_error "pnpm 安装失败。"
+        return 1
+      fi
       log_success "pnpm 安装完成: $(pnpm --version)"
     fi
   else

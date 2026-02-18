@@ -22,10 +22,18 @@ install_python() {
   else
     log_info "安装 uv..."
     # astral.sh 国内通常可达，不需要代理
-    curl_pipe "https://astral.sh/uv/install.sh" sh
+    if ! curl_pipe "https://astral.sh/uv/install.sh" sh; then
+      log_error "uv 安装失败。"
+      return 1
+    fi
 
     # uv 安装到 ~/.local/bin
     export PATH="${HOME}/.local/bin:${PATH}"
+
+    if ! check_command uv; then
+      log_error "uv 安装失败: uv 命令未找到。"
+      return 1
+    fi
 
     add_to_bashrc "UV_SETUP" \
       '# uv — Python package & version manager' \

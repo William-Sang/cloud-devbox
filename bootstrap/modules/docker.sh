@@ -37,7 +37,10 @@ install_docker() {
       gpg_url="${MIRROR_DOCKER_CE}/linux/ubuntu/gpg"
     fi
 
-    curl_pipe "$gpg_url" sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    if ! curl_pipe "$gpg_url" sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg; then
+      log_error "Docker GPG key 导入失败。"
+      return 1
+    fi
     sudo chmod a+r /etc/apt/keyrings/docker.gpg
   fi
 
