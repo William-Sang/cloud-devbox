@@ -17,15 +17,18 @@ source "$BOOTSTRAP_DIR/lib/common.sh"
 source "$BOOTSTRAP_DIR/lib/config.sh"
 # shellcheck source=lib/region.sh
 source "$BOOTSTRAP_DIR/lib/region.sh"
+# shellcheck source=lib/proxy.sh
+source "$BOOTSTRAP_DIR/lib/proxy.sh"
 
 # ─── EXIT trap（仅在实际执行子命令时打印耗时）──────────────────────────────────
 _SHOW_DURATION=false
 trap '[[ "$_SHOW_DURATION" == true ]] && echo "" && echo "[${SCRIPT_NAME}] 总耗时: $(show_duration ${SCRIPT_START_TIME})"' EXIT
 
 # ─── 模块定义 ──────────────────────────────────────────────────────────────────
-MODULE_ORDER=(mirror base docker node python ai-tools shell-config)
+MODULE_ORDER=(proxy mirror base docker node python ai-tools shell-config)
 
 declare -A MODULE_DESC=(
+  [proxy]="代理配置（环境变量 + git + Docker 守护进程代理）"
   [mirror]="镜像源配置（根据区域自动设置 apt/npm/pypi 源）"
   [base]="基础系统工具 (git, curl, vim, tmux, ripgrep, jq 等)"
   [docker]="Docker Engine + docker-compose 插件"
@@ -36,6 +39,7 @@ declare -A MODULE_DESC=(
 )
 
 declare -A MODULE_DEFAULT=(
+  [proxy]="off"
   [mirror]="on"
   [base]="on"
   [docker]="off"
@@ -62,6 +66,7 @@ init-devbox — Ubuntu 全栈开发环境初始化工具
 
 apply 选项:
   --region cn|overseas    设置区域（cn=中国镜像, overseas=官方源）
+  --proxy <url>           设置代理（http://host:port 或 socks5://host:port）
   --all                   安装所有模块
   --module m1,m2,...      指定安装的模块（逗号分隔）
   --yes                   跳过确认提示
@@ -72,6 +77,7 @@ verify 选项:
   --report-json <path>    导出 JSON 验证报告
 
 可用模块:
+  proxy         代理配置
   mirror        镜像源配置
   base          基础系统工具
   docker        Docker Engine
@@ -102,6 +108,7 @@ NON_INTERACTIVE=false
 AUTO_YES=false
 CLI_REGION=""
 CLI_MODULES=""
+CLI_PROXY=""
 CONFIG_FILE=""
 REPORT_JSON=""
 
@@ -120,6 +127,7 @@ parse_args() {
       case "$next_is" in
         region)  CLI_REGION="$arg" ;;
         module)  CLI_MODULES="$arg" ;;
+        proxy)   CLI_PROXY="$arg" ;;
         config)  CONFIG_FILE="$arg" ;;
         report)  REPORT_JSON="$arg" ;;
       esac
@@ -135,6 +143,8 @@ parse_args() {
       --region)          next_is="region" ;;
       --module=*)        CLI_MODULES="${arg#--module=}" ;;
       --module)          next_is="module" ;;
+      --proxy=*)         CLI_PROXY="${arg#--proxy=}" ;;
+      --proxy)           next_is="proxy" ;;
       --config=*)        CONFIG_FILE="${arg#--config=}" ;;
       --config)          next_is="config" ;;
       --report-json=*)   REPORT_JSON="${arg#--report-json=}" ;;
@@ -343,6 +353,9 @@ cmd_apply() {
 
   # 初始化配置
   config_init "$BOOTSTRAP_DIR" "$CONFIG_FILE"
+
+  # 代理（必须在任何网络操作之前）
+  resolve_proxy "$CLI_PROXY"
 
   # 确定区域
   local non_interactive_flag="false"

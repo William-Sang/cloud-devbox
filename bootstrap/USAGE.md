@@ -65,6 +65,7 @@ init-devbox apply [选项]
 
 选项:
   --region cn|overseas    网络区域
+  --proxy <url>           设置代理（http://host:port 或 socks5://host:port）
   --all                   安装所有模块
   --module m1,m2,...      指定模块（逗号分隔）
   --yes / -y              跳过确认提示
@@ -96,6 +97,7 @@ init-devbox verify --report-json /tmp/verify-report.json
 
 | 模块 | 默认 | 安装内容 |
 |------|:---:|---------|
+| **proxy** | OFF | 代理持久化（.bashrc、git proxy、Docker daemon proxy） |
 | **mirror** | ON | 根据区域配置 apt/npm/pypi 镜像源 |
 | **base** | ON | git, curl, wget, vim, tmux, htop, build-essential, ripgrep, jq, unzip |
 | **docker** | OFF | Docker Engine, docker-compose, Docker Buildx |
@@ -144,6 +146,14 @@ bun = true              # 是否安装 bun
 
 [docker]
 mode = "group"          # "group"（docker 组）或 "rootless"
+
+[proxy]
+# 本地代理地址（Clash, V2Ray 等），留空则不使用
+url = ""                # "http://127.0.0.1:7890" | "socks5://127.0.0.1:7891"
+no_proxy = "localhost,127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+persist_bashrc = false  # 写入 ~/.bashrc
+git = false             # git config --global http.proxy
+docker = false          # Docker daemon systemd drop-in
 
 [mirrors]
 # 留空 = 根据 region 自动填充
@@ -229,6 +239,47 @@ bunx create-next-app        # 一次性运行包
 | Qoder CLI | `qodercli` | Qoder 账号 (qoder.com) |
 | Gemini CLI | `gemini` | Google 账号（免费额度）或 GEMINI_API_KEY |
 
+## 代理配置
+
+国内用户如果有本地代理（Clash、V2Ray 等），可以让 init-devbox 通过代理访问海外资源。
+
+### 命令行一次性使用
+
+```bash
+# 通过 HTTP 代理安装
+bash bootstrap/init-devbox.sh apply --proxy http://127.0.0.1:7890 --region cn --all --yes
+
+# 通过 SOCKS5 代理安装
+bash bootstrap/init-devbox.sh apply --proxy socks5://127.0.0.1:7891 --region cn --all --yes
+
+# 远程一键安装 + 代理
+curl -fsSL .../install.sh | bash -s -- --proxy http://127.0.0.1:7890 --region cn --all --yes
+```
+
+`--proxy` 会在安装过程中自动设置 `HTTP_PROXY`/`HTTPS_PROXY` 环境变量，所有下载（curl、apt、npm、pip）都会走代理。
+
+### config.toml 持久配置
+
+```toml
+[proxy]
+url = "socks5://127.0.0.1:7890"
+persist_bashrc = true    # 写入 ~/.bashrc，新 shell 也使用代理
+git = true               # 配置 git 全局代理
+docker = true            # 配置 Docker daemon 代理
+```
+
+### 优先级
+
+代理地址的读取优先级：`--proxy` CLI 参数 > `config.toml [proxy].url` > 已有环境变量 `$HTTP_PROXY`。
+
+### 支持的代理协议
+
+| 协议 | 示例 | 说明 |
+|------|------|------|
+| HTTP | `http://127.0.0.1:7890` | 最常用，Clash 默认端口 |
+| SOCKS5 | `socks5://127.0.0.1:7891` | DNS 本地解析 |
+| SOCKS5H | `socks5h://127.0.0.1:7891` | DNS 也走代理（推荐国内用户） |
+
 ## 故障排查
 
 ### 常见问题
@@ -243,6 +294,9 @@ source ~/.bashrc
 ```bash
 # 切换到中国镜像
 bash bootstrap/init-devbox.sh apply --region cn
+
+# 如果有本地代理（Clash 等），可以同时使用代理
+bash bootstrap/init-devbox.sh apply --proxy http://127.0.0.1:7890 --region cn
 ```
 
 **Q: 权限不足？**

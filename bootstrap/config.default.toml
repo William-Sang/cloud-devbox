@@ -23,6 +23,19 @@ bun = true
 # "group"（默认，添加用户到 docker 组）或 "rootless"
 mode = "group"
 
+[proxy]
+# 本地代理地址（Clash, V2Ray 等），留空则不使用代理
+# 支持 http://, socks5://, socks5h://
+url = ""
+# 不走代理的地址列表（逗号分隔）
+no_proxy = "localhost,127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+# 是否写入 ~/.bashrc 让新 shell 会话也使用代理
+persist_bashrc = false
+# 是否配置 git 全局代理
+git = false
+# 是否配置 Docker 守护进程代理（systemd drop-in）
+docker = false
+
 [mirrors]
 # 留空 = 根据 region 自动填充；手动填写则覆盖 region 预设
 apt = ""
