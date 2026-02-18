@@ -24,8 +24,7 @@
 3. ~~可以自定义添加 ssh pub key 用于虚拟机登录~~ ✅ 已支持（通过 .env 配置）
 4. ~~如何解决每次需要删除 机器指纹的问题（机器每次都会重新创建）~~ ✅ 已解决（在 SSH config 中启用 StrictHostKeyChecking no 和 UserKnownHostsFile /dev/null）
 5. ~~如何解决 windows cursor 读取不到 wls 下的 ssh key 的问题~~ ✅ 已解决（提供同步脚本）
-6. 自定义镜像是否可以，默认安装 cursor server
-7. ~~密钥管理优化【不内置在 镜像 中】~~ ✅ 已优化（通过 metadata 传递）
+6. ~~密钥管理优化【不内置在 镜像 中】~~ ✅ 已优化（通过 metadata 传递）
 
 ---
 
@@ -54,7 +53,14 @@
 ├── .state/                     # 运行时状态文件（自动生成，gitignore）
 │   ├── last_instance_name      # 最后创建的实例名称
 │   └── startup-script.sh       # 临时启动脚本
-├── .env.example                # 环境变量模板
+├── bootstrap/                  # init-devbox: 独立开发环境安装器
+│   ├── init-devbox.sh          # CLI 入口 (apply/doctor/verify)
+│   ├── install.sh              # curl|bash 远程安装入口
+│   ├── config.default.toml     # 默认配置
+│   ├── USAGE.md                # 使用文档
+│   ├── lib/                    # 基础库 (common, config, region, proxy)
+│   └── modules/                # 可插拔模块 (base, docker, node, python, ai-tools 等)
+├── env.example                 # 环境变量模板
 └── README.md
 ```
 
@@ -254,9 +260,9 @@ bash scripts/destroy-dev.sh
   - `delete-builder`：删除构建机实例
   - 脚本通过 metadata 传入并自动保存到 `~/builder-setup.sh`（方便调试）
 - `scripts/builder-setup.sh`：**Builder 配置脚本**
-  - 安装 mise（Node.js/Python 版本管理器）
-  - 安装 Docker, Git, Vim (amix/vimrc)
-  - 配置 Git 用户信息和 SSH 密钥
+  - 委托 `bootstrap/init-devbox.sh` 安装全部开发工具
+  - 安装 fnm (Node.js LTS) + uv (Python 3.12/3.13) + Docker + Git + Vim (amix/vimrc)
+  - 配置 SSH 密钥、创建 /workspace 目录
   - 可自定义添加任意依赖和配置
   - 详见 [docs/BUILDER_GUIDE.md](docs/BUILDER_GUIDE.md)
 

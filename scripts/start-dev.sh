@@ -37,7 +37,7 @@ GCP_ZONE=${GCP_ZONE:-asia-northeast1-a}
 
 ADDRESS_NAME=${ADDRESS_NAME:-dev-ip}
 DISK_NAME=${DISK_NAME:-dev-data}
-DISK_SIZE_GB=${DISK_SIZE_GB:-100}
+DISK_SIZE_GB=${DISK_SIZE_GB:-20}
 DISK_TYPE=${DISK_TYPE:-pd-balanced}
 
 # 持久 boot disk 配置（开启后系统盘也会持久化，apt 安装的软件不会丢失）
@@ -50,8 +50,8 @@ IMAGE_FAMILY=${IMAGE_FAMILY:-}
 IMAGE_PROJECT=${IMAGE_PROJECT:-}
 
 # 默认镜像配置（当自定义镜像不存在时使用）
-DEFAULT_IMAGE_FAMILY=${DEFAULT_IMAGE_FAMILY:-debian-12}
-DEFAULT_IMAGE_PROJECT=${DEFAULT_IMAGE_PROJECT:-debian-cloud}
+DEFAULT_IMAGE_FAMILY=${DEFAULT_IMAGE_FAMILY:-ubuntu-2404-lts-amd64}
+DEFAULT_IMAGE_PROJECT=${DEFAULT_IMAGE_PROJECT:-ubuntu-os-cloud}
 
 SPOT_INSTANCE_NAME=${SPOT_INSTANCE_NAME:-}
 SPOT_MACHINE_TYPE=${SPOT_MACHINE_TYPE:-e2-standard-4}
@@ -60,7 +60,8 @@ TERMINATION_ACTION=${TERMINATION_ACTION:-DELETE}
 
 NETWORK_TAGS=${NETWORK_TAGS:-ssh}
 MOUNT_POINT=${MOUNT_POINT:-/workspace}
-MOUNT_DEVICE=${MOUNT_DEVICE:-/dev/sdb}
+# 默认使用 /dev/disk/by-id/ 稳定路径（基于磁盘名），不受设备顺序影响
+MOUNT_DEVICE=${MOUNT_DEVICE:-/dev/disk/by-id/google-${DISK_NAME}}
 
 LABEL_KEY=${LABEL_KEY:-devbox}
 LABEL_VALUE=${LABEL_VALUE:-yes}
@@ -100,7 +101,7 @@ fi
 
 # 1) 确认静态 IP 存在
 ADDR_DESCRIBE_ERR=""
-if ! ADDR_DESCRIBE_ERR="$(run_gcloud compute addresses describe "$ADDRESS_NAME" --region "$GCP_REGION" 2>&1 >/dev/null)"; then
+if ! ADDR_DESCRIBE_ERR="$(run_gcloud compute addresses describe "$ADDRESS_NAME" --region "$GCP_REGION" 2>&1 1>/dev/null)"; then
   # gcloud 失败不一定是“资源不存在”，也可能是网络/权限/API 未启用等原因
   if [[ "$ADDR_DESCRIBE_ERR" == *"was not found"* || "$ADDR_DESCRIBE_ERR" == *"NOT_FOUND"* || "$ADDR_DESCRIBE_ERR" == *"not found"* ]]; then
     echo "[start] static address '$ADDRESS_NAME' not found in $GCP_REGION. Run scripts/setup-network.sh first." >&2
@@ -176,31 +177,59 @@ fi
 STARTUP_SCRIPT_FILE="$ROOT_DIR/.state/startup-script.sh"
 cat > "$STARTUP_SCRIPT_FILE" <<EOF
 #!/bin/bash
-set -e
+set -euo pipefail
+
+DEVICE="${MOUNT_DEVICE}"
+
+# 等待设备就绪（GCE 磁盘挂载可能有短暂延迟）
+echo "等待数据盘设备 \${DEVICE} 就绪..."
+for i in \$(seq 1 30); do
+  if [[ -e "\${DEVICE}" ]]; then
+    break
+  fi
+  sleep 1
+done
+
+if [[ ! -e "\${DEVICE}" ]]; then
+  echo "❌ 数据盘设备 \${DEVICE} 不存在，跳过挂载" >&2
+  echo "请检查 .env 中 MOUNT_DEVICE 和 DISK_NAME 配置是否正确" >&2
+  exit 1
+fi
+
+# 解析实际设备路径（符号链接 -> 块设备）
+REAL_DEVICE=\$(readlink -f "\${DEVICE}")
+echo "数据盘设备: \${DEVICE} -> \${REAL_DEVICE}"
+
+# 安全检查：拒绝操作 boot 分区所在的磁盘
+BOOT_DISK=\$(readlink -f /dev/disk/by-id/google-"${BOOT_DISK_NAME}" 2>/dev/null || echo "")
+if [[ -n "\${BOOT_DISK}" && "\${REAL_DEVICE}" == "\${BOOT_DISK}"* ]]; then
+  echo "❌ 安全检查失败: \${DEVICE} 解析为 \${REAL_DEVICE}，与 boot disk 冲突" >&2
+  exit 1
+fi
 
 # 检查磁盘是否已格式化，如果没有则格式化
-if ! blkid ${MOUNT_DEVICE} > /dev/null 2>&1; then
-  echo "正在格式化 ${MOUNT_DEVICE} 为 ext4..."
-  mkfs.ext4 -F ${MOUNT_DEVICE}
+if ! blkid "\${DEVICE}" > /dev/null 2>&1; then
+  echo "正在格式化 \${DEVICE} 为 ext4..."
+  mkfs.ext4 -F "\${DEVICE}"
 fi
 
 # 创建挂载点
-mkdir -p ${MOUNT_POINT}
+mkdir -p "${MOUNT_POINT}"
 
 # 如果未挂载则挂载
 if ! grep -qs "${MOUNT_POINT}" /proc/mounts; then
-  mount -o discard,defaults ${MOUNT_DEVICE} ${MOUNT_POINT}
+  mount -o discard,defaults "\${DEVICE}" "${MOUNT_POINT}"
 fi
 
-# 添加到 fstab（如果还没有）
+# 添加到 fstab（使用稳定设备路径，如果还没有）
 if ! grep -qs "${MOUNT_POINT}" /etc/fstab; then
-  echo "${MOUNT_DEVICE} ${MOUNT_POINT} ext4 discard,defaults,nofail 0 2" >> /etc/fstab
+  echo "\${DEVICE} ${MOUNT_POINT} ext4 discard,defaults,nofail 0 2" >> /etc/fstab
 fi
 
 # 设置工作目录权限（确保属于配置的用户）
 if id "${SSH_USERNAME}" &>/dev/null; then
-  chown -R ${SSH_USERNAME}:${SSH_USERNAME} ${MOUNT_POINT}
-  chmod 755 ${MOUNT_POINT}
+  chown -R "${SSH_USERNAME}:${SSH_USERNAME}" "${MOUNT_POINT}"
+  chmod 755 "${MOUNT_POINT}"
   echo "✓ ${MOUNT_POINT} 所有者已设置为 ${SSH_USERNAME}"
 fi
 
@@ -215,12 +244,11 @@ cat > /etc/motd <<MOTD
 
 已安装工具：
   • Docker、Git、Vim (amix/vimrc)
-  • mise (Node.js LTS, Python 3.12)
+  • fnm (Node.js LTS), uv (Python 3.12/3.13)
 
 使用提示：
   • 所有工具已为 ${SSH_USERNAME} 用户配置完成
   • Docker 可直接使用，无需 sudo
-  • mise 已自动激活
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 MOTD
@@ -346,8 +374,10 @@ ${IDENTITY_FILE_CONFIG}
   ServerAliveInterval 60
   ServerAliveCountMax 3
   IdentitiesOnly yes
-  StrictHostKeyChecking no
+  StrictHostKeyChecking accept-new
   UserKnownHostsFile /dev/null
+  # 注意: accept-new 会自动接受新主机密钥但拒绝变更的密钥
+  # Spot 实例重建后主机密钥会变化，如遇连接拒绝可清理 known_hosts 对应条目
 
 然后使用： ssh gcp-dev
 工作目录： ${MOUNT_POINT}

@@ -1,12 +1,13 @@
-# Builder 自动化配置指南
+# Builder 配置指南
 
 ## 🎯 功能说明
 
-现在创建 builder 实例时会自动执行配置脚本，无需手动 SSH 进入安装依赖。
+`build-image.sh` 通过 metadata 将配置脚本传入 builder 实例，用户需要手动 SSH 登录后执行脚本。
+这种方式方便实时查看输出和调试。
 
 ## 🚀 快速开始
 
-### 1. 创建 Builder（自动配置）
+### 1. 创建 Builder 实例
 
 ```bash
 bash scripts/build-image.sh create-builder
@@ -14,58 +15,34 @@ bash scripts/build-image.sh create-builder
 
 脚本会自动：
 - ✓ 创建 builder 实例
-- ✓ 执行 `scripts/builder-setup.sh` 配置脚本
-- ✓ 安装 Docker, Node.js, Python 等工具
-- ✓ 配置开发环境
+- ✓ 通过 metadata 传入 `scripts/builder-setup.sh`
+- ✓ 将脚本保存到实例的 `~/builder-setup.sh`
 
-**配置时间**：约 3-5 分钟
-
-### 2. 查看配置进度
+### 2. SSH 登录并执行配置脚本
 
 ```bash
-# 方法 1：查看串行端口输出（推荐）
-gcloud compute instances get-serial-port-output dev-builder --zone asia-northeast1-a
+# 等待 30 秒让实例启动
+gcloud compute ssh dev-builder --zone=asia-northeast1-a
 
-# 方法 2：SSH 进入查看
-gcloud compute ssh dev-builder --zone asia-northeast1-a
-
-# 方法 3：查看实例状态
-gcloud compute instances describe dev-builder --zone asia-northeast1-a
+# 执行配置脚本（实时查看输出）
+sudo bash ~/builder-setup.sh
 ```
 
-### 3. 等待配置完成
+**配置时间**：约 5-10 分钟（取决于网络）
 
-配置完成后，可以：
+`builder-setup.sh` 会自动调用 `bootstrap/init-devbox.sh` 安装全部开发工具。
 
-**选项 A：直接关机并创建镜像**
+### 3. 关机并创建镜像
+
 ```bash
-# SSH 进入 builder
-gcloud compute ssh dev-builder --zone asia-northeast1-a
-
-# 关机
+# 在 builder 实例中关机
 sudo poweroff
-```
 
-**选项 B：添加额外配置后再关机**
-```bash
-# SSH 进入 builder
-gcloud compute ssh dev-builder --zone asia-northeast1-a
-
-# 安装额外工具
-# ...
-
-# 完成后关机
-sudo poweroff
-```
-
-### 4. 创建镜像
-
-```bash
-# 等待实例完全停止后
+# 回到本地，创建镜像（必须等实例完全停止）
 bash scripts/build-image.sh create-image
 ```
 
-### 5. 清理
+### 4. 清理
 
 ```bash
 bash scripts/build-image.sh delete-builder
@@ -75,38 +52,33 @@ bash scripts/build-image.sh delete-builder
 
 ### 默认安装内容
 
-`scripts/builder-setup.sh` 默认安装：
+`scripts/builder-setup.sh` 委托 `bootstrap/init-devbox.sh` 安装：
 
-- **系统工具**：curl, wget, git, vim, tmux, htop, build-essential
-- **Docker**：Docker Engine + Docker Compose
-- **Node.js**：最新 LTS 版本 + npm
-- **Python**：Python 3 + pip + venv
-- **工作目录**：/workspace
+- **系统工具**：curl, wget, git, vim, tmux, htop, build-essential, ripgrep, jq
+- **Docker**：Docker Engine + Docker Compose 插件
+- **Node.js**：fnm + Node.js LTS + pnpm + bun
+- **Python**：uv + Python 3.12 + 3.13
+- **AI 工具**：Claude Code, OpenCode, Codex, Qoder, Gemini CLI
+- **Shell 配置**：别名, git-aware PS1, git 默认, 补全
+- **其他**：Vim (amix/vimrc), Git 配置, SSH 密钥, /workspace 目录
 
 ### 添加自定义配置
 
-编辑 `scripts/builder-setup.sh`，在 "自定义安装内容" 部分添加：
+在 builder 实例中执行 `builder-setup.sh` 后，可以手动安装额外工具：
 
 ```bash
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 📝 自定义安装内容
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# SSH 进入 builder
+gcloud compute ssh dev-builder --zone asia-northeast1-a
 
-# 示例：安装 Go
-echo "安装 Go..."
-wget -q https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
-tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
-echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile
+# 执行基础配置
+sudo bash ~/builder-setup.sh
 
-# 示例：安装 Rust
-echo "安装 Rust..."
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+# 安装额外工具
+sudo apt-get install -y neovim
+# ...
 
-# 示例：安装 Cursor Server（推荐）
-echo "安装 Cursor Server..."
-# 添加安装命令...
-
-# 您的自定义内容...
+# 完成后关机
+sudo poweroff
 ```
 
 ### 常见配置示例
@@ -131,27 +103,14 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 source $HOME/.cargo/env
 ```
 
-#### 安装特定 Python 包
+#### 安装 Python 包
 
 ```bash
 echo "安装 Python 包..."
-pip3 install --quiet \
-  requests \
-  pandas \
-  numpy \
-  flask \
-  fastapi \
-  uvicorn
-```
-
-#### 配置 Docker Compose 项目
-
-```bash
-echo "准备 Docker 项目..."
-cd /workspace
-git clone https://github.com/your/project.git
-cd project
-docker-compose pull
+uv tool install ruff
+uv tool install black
+# 或在项目虚拟环境中:
+# uv pip install requests pandas numpy
 ```
 
 #### 配置 vim/nvim
@@ -172,78 +131,63 @@ VIMEOF
 ## 📋 完整工作流程
 
 ```bash
-# 1. 自定义配置脚本
-vim scripts/builder-setup.sh
+# 1. (可选) 自定义 bootstrap 配置
+vim bootstrap/config.default.toml
 
-# 2. 创建并自动配置 builder
+# 2. 创建 builder 实例
 bash scripts/build-image.sh create-builder
 
-# 3. 查看配置进度（可选）
-gcloud compute instances get-serial-port-output dev-builder \
-  --zone asia-northeast1-a
-
-# 4. 等待 3-5 分钟后，SSH 进入验证（可选）
+# 3. 等待 30 秒后，SSH 登录并执行配置
 gcloud compute ssh dev-builder --zone asia-northeast1-a
+sudo bash ~/builder-setup.sh
 
-# 5. 验证安装
+# 4. 验证安装
 docker --version
+fnm --version
 node --version
-python3 --version
+uv --version
+python --version
 
-# 6. 如需额外配置，现在操作；否则关机
+# 5. 如需额外配置，现在操作；否则关机
 sudo poweroff
 
-# 7. 创建镜像
+# 6. 创建镜像（需等实例完全停止）
 bash scripts/build-image.sh create-image
 
-# 8. 清理 builder
+# 7. 清理 builder
 bash scripts/build-image.sh delete-builder
 
-# 9. 使用新镜像启动开发机
+# 8. 使用新镜像启动开发机
 # 确保 .env 中配置了正确的 IMAGE_FAMILY
 bash scripts/start-dev.sh
 ```
 
 ## 🔍 故障排查
 
-### 查看配置脚本执行日志
-
-```bash
-# 实时查看串行端口输出
-gcloud compute instances tail-serial-port-output dev-builder \
-  --zone asia-northeast1-a
-
-# 或 SSH 进入查看系统日志
-gcloud compute ssh dev-builder --zone asia-northeast1-a
-sudo journalctl -u google-startup-scripts.service
-```
-
 ### 配置脚本失败
 
 如果配置脚本执行失败：
 
-1. **查看错误日志**：
-   ```bash
-   gcloud compute ssh dev-builder --zone asia-northeast1-a
-   sudo cat /var/log/syslog | grep startup-script
-   ```
+1. **查看错误信息**：脚本会实时输出到终端，查看最后的错误信息
 
 2. **手动重新执行**：
    ```bash
-   sudo bash /var/run/google.startup.script
+   sudo bash ~/builder-setup.sh
    ```
 
 3. **调试配置脚本**：
-   - 在 `builder-setup.sh` 中添加 `set -x` 查看详细执行过程
-   - 注释掉有问题的部分，逐步调试
+   ```bash
+   # 使用 -x 查看详细执行过程
+   sudo bash -x ~/builder-setup.sh
+   ```
 
 ### 镜像创建失败
 
 ```bash
-# 检查 builder 实例状态
-gcloud compute instances describe dev-builder --zone asia-northeast1-a
+# 检查 builder 实例状态（必须为 TERMINATED 或 STOPPED）
+gcloud compute instances describe dev-builder --zone asia-northeast1-a --format='get(status)'
 
-# 确保实例已停止
+# 如果实例还在运行，先停止
 gcloud compute instances stop dev-builder --zone asia-northeast1-a
 
 # 重试创建镜像
@@ -252,26 +196,17 @@ bash scripts/build-image.sh create-image
 
 ## 💡 最佳实践
 
-1. **版本控制**：将 `builder-setup.sh` 提交到 Git，团队共享配置
+1. **版本控制**：将 `builder-setup.sh` 和 `bootstrap/` 配置提交到 Git，团队共享配置
 
-2. **模块化**：创建多个配置脚本，按需组合
+2. **测试驱动**：在本地 Docker 容器中测试 bootstrap：
    ```bash
-   scripts/
-   ├── builder-setup.sh           # 主脚本
-   ├── builder-setup-docker.sh    # Docker 配置
-   ├── builder-setup-nodejs.sh    # Node.js 配置
-   └── builder-setup-python.sh    # Python 配置
+   docker run -it ubuntu:24.04 bash
+   # 安装 git, curl, 然后运行 bootstrap/init-devbox.sh
    ```
 
-3. **测试驱动**：在本地 Docker 容器中测试配置脚本
-   ```bash
-   docker run -it debian:12 bash
-   # 复制并运行配置脚本
-   ```
+3. **定期更新**：定期重新构建镜像以获取安全更新
 
-4. **定期更新**：定期更新配置脚本中的软件版本
-
-5. **文档化**：在 `builder-setup.sh` 中添加注释说明自定义内容
+4. **文档化**：在 `bootstrap/config.toml` 中记录自定义配置
 
 ## 🔐 安全提醒
 
@@ -282,11 +217,11 @@ bash scripts/build-image.sh create-image
 
 ## 📚 相关文档
 
-- [build-image.sh](scripts/build-image.sh) - Builder 管理脚本
-- [builder-setup.sh](scripts/builder-setup.sh) - 配置脚本模板
-- [README.md](README.md) - 项目主文档
+- [BUILDER_WORKFLOW.md](BUILDER_WORKFLOW.md) - Builder 工作流程详解
+- [SSH_KEY_MANAGEMENT.md](SSH_KEY_MANAGEMENT.md) - SSH 密钥管理方案
+- [QUICK_REFERENCE.md](QUICK_REFERENCE.md) - 快速参考手册
+- [bootstrap/USAGE.md](../bootstrap/USAGE.md) - Bootstrap 安装器使用文档
 
 ---
 
-**最后更新**: 2024-10-18
-
+**最后更新**: 2026-02-18

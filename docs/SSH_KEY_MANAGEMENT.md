@@ -42,7 +42,7 @@
 
 ```bash
 # 在镜像构建时生成 SSH 密钥
-ssh-keygen -t ed25519 -C "sang.williams@gmail.com" -f ~/.ssh/id_ed25519 -N ""
+ssh-keygen -t ed25519 -C "gcp-dev-machine" -f ~/.ssh/id_ed25519 -N ""
 ```
 
 ### 问题分析
@@ -148,11 +148,11 @@ Host *.compute.internal
 
 ```bash
 # 临时使用
-gcloud compute ssh builder-instance --ssh-flag="-A"
+gcloud compute ssh dev-builder --ssh-flag="-A"
 
 # 或设置环境变量
 export GCE_SSH_FLAGS="-A"
-gcloud compute ssh builder-instance
+gcloud compute ssh dev-builder
 ```
 
 **4. 验证转发是否工作**
@@ -239,7 +239,7 @@ gcloud secrets add-iam-policy-binding dev-ssh-private-key \
 
 **3. 修改 builder-setup.sh**
 
-替换 SSH 密钥生成部分（第 158-180 行）：
+替换 SSH 密钥生成部分（SSH 密钥生成部分）：
 
 ```bash
 # 生成 SSH 密钥 → 改为：从 Secret Manager 获取密钥
@@ -464,7 +464,7 @@ git clone git@github.com-repo1:user/repo1.git
 
 **1. 在 builder-setup.sh 中移除密钥生成**
 
-注释掉第 158-180 行的密钥生成代码。
+注释掉SSH 密钥生成部分的密钥生成代码。
 
 **2. 创建首次启动服务**
 
@@ -687,7 +687,7 @@ gcloud secrets list
 
 #### 步骤 2：修改 builder-setup.sh（约 5 分钟）
 
-参考方案 2 的代码，替换第 158-180 行。
+参考方案 2 的代码，替换SSH 密钥生成部分。
 
 #### 步骤 3：重建镜像（约 5-10 分钟）
 
@@ -699,7 +699,7 @@ bash scripts/build-image.sh delete-builder
 bash scripts/build-image.sh create-builder
 
 # 3. 等待配置完成，然后关机
-gcloud compute ssh builder-instance --command="sudo poweroff"
+gcloud compute ssh dev-builder --command="sudo poweroff"
 
 # 4. 创建新镜像
 bash scripts/build-image.sh create-image

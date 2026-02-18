@@ -51,7 +51,14 @@ apply_overseas_mirrors() {
 # ─── 读取区域缓存 ─────────────────────────────────────────────────────────────
 _read_region_cache() {
   if [[ -f "$_REGION_CACHE_FILE" ]]; then
-    cat "$_REGION_CACHE_FILE"
+    local cached
+    cached=$(cat "$_REGION_CACHE_FILE")
+    # 去除空白并验证
+    cached="${cached//[[:space:]]/}"
+    case "$cached" in
+      cn|overseas) echo "$cached" ;;
+      # 无效缓存值，忽略
+    esac
   fi
 }
 
@@ -64,7 +71,10 @@ _write_region_cache() {
     *) value="overseas" ;;
   esac
   mkdir -p "$_REGION_CACHE_DIR"
-  echo "$value" > "$_REGION_CACHE_FILE"
+  # 原子写入：先写临时文件再 mv，防止中断产生空文件
+  local tmp_file="${_REGION_CACHE_FILE}.tmp"
+  echo "$value" > "$tmp_file"
+  mv "$tmp_file" "$_REGION_CACHE_FILE"
 }
 
 # ─── 交互式询问区域 ───────────────────────────────────────────────────────────

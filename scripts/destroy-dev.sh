@@ -92,12 +92,15 @@ delete_instances() {
   
   if [[ -n "$TARGET_INSTANCE" ]]; then
     echo "[destroy] deleting instance: $TARGET_INSTANCE"
-    run_gcloud compute instances delete "$TARGET_INSTANCE" --zone "$GCP_ZONE" --quiet || true
-    deleted=true
+    if ! run_gcloud compute instances delete "$TARGET_INSTANCE" --zone "$GCP_ZONE" --quiet; then
+      echo "[destroy] ⚠ 删除实例 '$TARGET_INSTANCE' 失败（可能已不存在或权限不足）" >&2
+    else
+      deleted=true
+    fi
   else
     echo "[destroy] no explicit instance specified, deleting labeled instances"
     INSTANCE_LIST=$(run_gcloud compute instances list \
-      --filter="labels.${LABEL_KEY}=${LABEL_VALUE} AND status~'RUNNING|PROVISIONING'" \
+      --filter="labels.${LABEL_KEY}=${LABEL_VALUE} AND zone:${GCP_ZONE} AND status:(RUNNING PROVISIONING)" \
       --format='get(name)')
 
     if [[ -z "${INSTANCE_LIST//[[:space:]]/}" ]]; then
@@ -106,8 +109,11 @@ delete_instances() {
       while IFS= read -r name; do
         [[ -z "$name" ]] && continue
         echo "[destroy] deleting $name"
-        run_gcloud compute instances delete "$name" --zone "$GCP_ZONE" --quiet || true
-        deleted=true
+        if ! run_gcloud compute instances delete "$name" --zone "$GCP_ZONE" --quiet; then
+          echo "[destroy] ⚠ 删除实例 '$name' 失败" >&2
+        else
+          deleted=true
+        fi
       done <<< "$INSTANCE_LIST"
     fi
   fi
@@ -125,7 +131,9 @@ if [[ "$PURGE_BOOT" == "true" ]]; then
   
   if run_gcloud compute disks describe "$BOOT_DISK_NAME" --zone "$GCP_ZONE" >/dev/null 2>&1; then
     echo "[destroy] 正在删除 boot disk: $BOOT_DISK_NAME"
-    run_gcloud compute disks delete "$BOOT_DISK_NAME" --zone "$GCP_ZONE" --quiet || true
+    if ! run_gcloud compute disks delete "$BOOT_DISK_NAME" --zone "$GCP_ZONE" --quiet; then
+      echo "[destroy] ⚠ 删除 boot disk '$BOOT_DISK_NAME' 失败" >&2
+    fi
     echo "[destroy] ✓ boot disk '$BOOT_DISK_NAME' 已删除"
   else
     echo "[destroy] boot disk '$BOOT_DISK_NAME' 不存在，跳过"

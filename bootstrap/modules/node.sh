@@ -33,6 +33,7 @@ install_node() {
       case "$arch" in
         x86_64)  arch="linux-x64" ;;
         aarch64) arch="linux-arm64" ;;
+        *) log_error "不支持的 CPU 架构: $arch"; return 1 ;;
       esac
       local fnm_url
       fnm_url=$(github_url "https://github.com/Schniz/fnm/releases/latest/download/fnm-${arch}.zip")
@@ -119,6 +120,7 @@ install_node() {
     case "$bun_arch" in
       x86_64)  bun_arch="bun-linux-x64" ;;
       aarch64) bun_arch="bun-linux-aarch64" ;;
+      *) log_error "bun 不支持的 CPU 架构: $bun_arch"; return 1 ;;
     esac
     local bun_url
     bun_url=$(github_url "https://github.com/oven-sh/bun/releases/latest/download/${bun_arch}.zip")

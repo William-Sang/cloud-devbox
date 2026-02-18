@@ -124,6 +124,10 @@ parse_args() {
   local next_is=""
   for arg in "$@"; do
     if [[ -n "$next_is" ]]; then
+      if [[ "$arg" == --* ]]; then
+        log_error "--$next_is 参数缺少值"
+        exit 1
+      fi
       case "$next_is" in
         region)  CLI_REGION="$arg" ;;
         module)  CLI_MODULES="$arg" ;;
@@ -157,6 +161,12 @@ parse_args() {
         ;;
     esac
   done
+
+  # 检查是否有未消费的参数值
+  if [[ -n "$next_is" ]]; then
+    log_error "--$next_is 参数缺少值"
+    exit 1
+  fi
 
   # 校验 --region 值
   if [[ -n "$CLI_REGION" && "$CLI_REGION" != "cn" && "$CLI_REGION" != "overseas" ]]; then
@@ -408,9 +418,11 @@ cmd_doctor() {
 
   config_init "$BOOTSTRAP_DIR" "$CONFIG_FILE"
 
-  # 尝试读取缓存区域
-  if [[ -f "${HOME}/.config/init-devbox/region" ]]; then
-    REGION=$(cat "${HOME}/.config/init-devbox/region")
+  # 尝试读取缓存区域（通过验证的读取函数）
+  local cached_region
+  cached_region=$(_read_region_cache)
+  if [[ -n "$cached_region" ]]; then
+    REGION="$cached_region"
   fi
 
   source "$BOOTSTRAP_DIR/modules/preflight.sh"
@@ -428,9 +440,11 @@ cmd_verify() {
 
   config_init "$BOOTSTRAP_DIR" "$CONFIG_FILE"
 
-  # 读取缓存区域
-  if [[ -f "${HOME}/.config/init-devbox/region" ]]; then
-    REGION=$(cat "${HOME}/.config/init-devbox/region")
+  # 读取缓存区域（通过验证的读取函数）
+  local cached_region
+  cached_region=$(_read_region_cache)
+  if [[ -n "$cached_region" ]]; then
+    REGION="$cached_region"
   fi
   check_ubuntu 2>/dev/null || true
 

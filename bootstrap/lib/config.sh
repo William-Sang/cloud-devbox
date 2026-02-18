@@ -49,16 +49,19 @@ config_load() {
         value="${value#"${value%%[![:space:]]*}"}"
         value="${value%"${value##*[![:space:]]}"}"
       else
-        # 非数组值：先去行内注释，再去引号
-        # 顺序重要：避免引号值与注释中的引号混淆
-        if [[ "$value" =~ ^([^#]*)[[:space:]]+#.*$ ]]; then
+        # 非数组值：先去引号，再处理行内注释
+        # 如果值以引号包裹，先剥离引号（引号内的 # 不是注释）
+        if [[ "$value" =~ ^\"(.*)\"$ ]]; then
           value="${BASH_REMATCH[1]}"
-          value="${value%"${value##*[![:space:]]}"}"
+        elif [[ "$value" =~ ^\'(.*)\'$ ]]; then
+          value="${BASH_REMATCH[1]}"
+        else
+          # 无引号值：去行内注释（# 前需有空白）
+          if [[ "$value" =~ ^([^#]*)[[:space:]]+#.*$ ]]; then
+            value="${BASH_REMATCH[1]}"
+            value="${value%"${value##*[![:space:]]}"}"
+          fi
         fi
-        value="${value#\"}"
-        value="${value%\"}"
-        value="${value#\'}"
-        value="${value%\'}"
       fi
 
       # 存入关联数组

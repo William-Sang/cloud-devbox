@@ -93,6 +93,7 @@ case "$CMD" in
     # 创建临时的初始化脚本
     # 该脚本会在实例启动时执行，从 metadata 中读取 builder-setup.sh
     TEMP_INIT_SCRIPT=$(mktemp)
+    trap 'rm -f "$TEMP_INIT_SCRIPT"' EXIT
     cat > "$TEMP_INIT_SCRIPT" <<'EOF'
 #!/bin/bash
 # 从 metadata 中提取 builder-setup.sh 并保存到用户主目录
@@ -182,18 +183,33 @@ EOF
 
   create-image)
     echo "[image] creating image from builder: $BUILDER_INSTANCE_NAME"
+
+    # 检查 builder 实例状态（必须已停止）
+    BUILDER_STATUS=$(gcloud "${PROJECT_FLAGS[@]}" compute instances describe "$BUILDER_INSTANCE_NAME" \
+      --zone "$GCP_ZONE" --format='get(status)' 2>/dev/null || echo "")
+    if [[ -z "$BUILDER_STATUS" ]]; then
+      echo "[image] ❌ builder 实例 '$BUILDER_INSTANCE_NAME' 不存在" >&2
+      exit 1
+    fi
+    if [[ "$BUILDER_STATUS" != "TERMINATED" && "$BUILDER_STATUS" != "STOPPED" ]]; then
+      echo "[image] ❌ builder 实例状态为 '$BUILDER_STATUS'，创建镜像前必须先关机" >&2
+      echo "[image] 请先执行: gcloud compute instances stop $BUILDER_INSTANCE_NAME --zone=$GCP_ZONE" >&2
+      exit 1
+    fi
+    echo "[image] ✓ builder 实例已停止 (status=$BUILDER_STATUS)"
+
     # 解析构建机的启动磁盘名称
     BOOT_DISK_URI=$(gcloud "${PROJECT_FLAGS[@]}" compute instances describe "$BUILDER_INSTANCE_NAME" --zone "$GCP_ZONE" --format='get(disks[0].source)')
     if [[ -z "${BOOT_DISK_URI}" ]]; then
       echo "[image] cannot resolve builder boot disk. Ensure builder exists." >&2
       exit 1
     fi
-    BOOT_DISK_NAME=${BOOT_DISK_URI##*/}
+    BUILDER_BOOT_DISK_NAME=${BOOT_DISK_URI##*/}
     TIMESTAMP=$(date +%Y%m%d-%H%M%S)
     IMAGE_NAME="${IMAGE_FAMILY}-${TIMESTAMP}"
 
     gcloud "${PROJECT_FLAGS[@]}" compute images create "$IMAGE_NAME" \
-      --source-disk="$BOOT_DISK_NAME" \
+      --source-disk="$BUILDER_BOOT_DISK_NAME" \
       --source-disk-zone="$GCP_ZONE" \
       --family="$IMAGE_FAMILY"
     echo "[image] image created: $IMAGE_NAME (family=$IMAGE_FAMILY)"

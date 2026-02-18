@@ -18,14 +18,17 @@ bash scripts/setup-network.sh
 ### 创建自定义镜像
 
 ```bash
-# 创建 builder（自动配置 3-5 分钟）
+# 创建 builder 实例
 bash scripts/build-image.sh create-builder
 
-# SSH 进入关机
+# SSH 登录并执行配置脚本（等待 30 秒让实例启动）
 gcloud compute ssh dev-builder --zone=asia-northeast1-a
+sudo bash ~/builder-setup.sh
+
+# 配置完成后关机
 sudo poweroff
 
-# 创建镜像
+# 创建镜像（必须等实例完全停止）
 bash scripts/build-image.sh create-image
 
 # 清理
@@ -162,9 +165,9 @@ sudo mount /dev/sdb /workspace
 
 ## 📚 完整文档链接
 
-- [README.md](README.md) - 项目主文档
+- [README.md](../README.md) - 项目主文档
 - [BUILDER_GUIDE.md](BUILDER_GUIDE.md) - Builder 详细指南
-- [QUICK_START_SSH.md](QUICK_START_SSH.md) - SSH 配置指南
+- [SSH_KEY_MANAGEMENT.md](SSH_KEY_MANAGEMENT.md) - SSH 密钥管理方案
 
 ---
 
