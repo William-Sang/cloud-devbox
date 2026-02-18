@@ -188,6 +188,29 @@ curl_download() {
   return 1
 }
 
+# ─── GitHub 文件下载（直连 + 代理回退）─────────────────────────────────────────
+# 用法: github_download <github_url> <output_file>
+# 先尝试官方直连；若失败且配置了 MIRROR_GITHUB_PROXY，则回退到代理下载。
+github_download() {
+  local url="$1"
+  local output="$2"
+
+  # 先尝试官方直连
+  if curl_download "$url" "$output"; then
+    return 0
+  fi
+
+  # 有代理则回退到代理
+  if [[ -n "${MIRROR_GITHUB_PROXY:-}" ]]; then
+    local proxy="${MIRROR_GITHUB_PROXY%/}/"
+    log_warn "直连失败，尝试 GitHub 镜像: ${proxy}"
+    curl_download "${proxy}${url}" "$output"
+    return $?
+  fi
+
+  return 1
+}
+
 # ─── 带重试的下载 + 管道执行 ──────────────────────────────────────────────────
 # 用法: curl_pipe <url> <command...>
 #   例: curl_pipe "https://example.com/install.sh" bash

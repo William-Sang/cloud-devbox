@@ -22,32 +22,22 @@ install_node() {
   else
     log_info "安装 fnm..."
 
-    local fnm_install_url="https://fnm.vercel.app/install"
-    # 中国区域: fnm 安装脚本本身从 vercel 下载，通常可达
-    # 但脚本内部从 GitHub Releases 下载二进制，需要代理
-    if [[ -n "$MIRROR_GITHUB_PROXY" ]]; then
-      # 直接下载 fnm 二进制，绕过安装脚本
-      log_info "使用 GitHub 代理下载 fnm..."
-      local arch
-      arch=$(uname -m)
-      case "$arch" in
-        x86_64)  arch="linux" ;;
-        aarch64) arch="arm64" ;;
-        *) log_error "不支持的 CPU 架构: $arch"; return 1 ;;
-      esac
-      local fnm_url
-      fnm_url=$(github_url "https://github.com/Schniz/fnm/releases/latest/download/fnm-${arch}.zip")
-      local tmp_dir
-      tmp_dir=$(mktemp -d)
-      curl_download "$fnm_url" "$tmp_dir/fnm.zip" || { rm -rf "$tmp_dir"; return 1; }
-      unzip -q "$tmp_dir/fnm.zip" -d "$tmp_dir"
-      mkdir -p "${HOME}/.local/share/fnm"
-      mv "$tmp_dir/fnm" "${HOME}/.local/share/fnm/fnm"
-      chmod +x "${HOME}/.local/share/fnm/fnm"
-      rm -rf "$tmp_dir"
-    else
-      curl_pipe "$fnm_install_url" bash
-    fi
+    local arch
+    arch=$(uname -m)
+    case "$arch" in
+      x86_64)  arch="linux" ;;
+      aarch64) arch="arm64" ;;
+      *) log_error "不支持的 CPU 架构: $arch"; return 1 ;;
+    esac
+    local fnm_url="https://github.com/Schniz/fnm/releases/latest/download/fnm-${arch}.zip"
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    github_download "$fnm_url" "$tmp_dir/fnm.zip" || { rm -rf "$tmp_dir"; return 1; }
+    unzip -q "$tmp_dir/fnm.zip" -d "$tmp_dir"
+    mkdir -p "${HOME}/.local/share/fnm"
+    mv "$tmp_dir/fnm" "${HOME}/.local/share/fnm/fnm"
+    chmod +x "${HOME}/.local/share/fnm/fnm"
+    rm -rf "$tmp_dir"
 
     # fnm 安装到 ~/.local/share/fnm
     export PATH="${HOME}/.local/share/fnm:${PATH}"
@@ -122,11 +112,10 @@ install_node() {
       aarch64) bun_arch="bun-linux-aarch64" ;;
       *) log_error "bun 不支持的 CPU 架构: $bun_arch"; return 1 ;;
     esac
-    local bun_url
-    bun_url=$(github_url "https://github.com/oven-sh/bun/releases/latest/download/${bun_arch}.zip")
+    local bun_url="https://github.com/oven-sh/bun/releases/latest/download/${bun_arch}.zip"
     local tmp_dir
     tmp_dir=$(mktemp -d)
-    curl_download "$bun_url" "$tmp_dir/bun.zip" || { rm -rf "$tmp_dir"; return 1; }
+    github_download "$bun_url" "$tmp_dir/bun.zip" || { rm -rf "$tmp_dir"; return 1; }
     unzip -q "$tmp_dir/bun.zip" -d "$tmp_dir"
     mkdir -p "${HOME}/.bun/bin"
     mv "$tmp_dir/${bun_arch}/bun" "${HOME}/.bun/bin/bun"
