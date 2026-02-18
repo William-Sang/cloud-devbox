@@ -64,5 +64,13 @@ else
   echo "[network] firewall '$FIREWALL_RULE_NAME' created"
 fi
 
+# 安全提醒
+if [[ "$SOURCE_RANGES_SSH" == "0.0.0.0/0" ]]; then
+  echo ""
+  echo "⚠ 安全警告: SOURCE_RANGES_SSH=0.0.0.0/0 允许任何 IP 访问 SSH"
+  echo "  建议在 .env 中限制为你的 IP 地址，例如: SOURCE_RANGES_SSH=1.2.3.4/32"
+  echo "  查看当前公网 IP: curl -s ifconfig.me"
+fi
+
 echo "[network] done"
 

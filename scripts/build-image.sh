@@ -63,7 +63,7 @@ GCP_ZONE=${GCP_ZONE:-asia-northeast1-a}
 
 BUILDER_INSTANCE_NAME=${BUILDER_INSTANCE_NAME:-dev-builder}
 BUILDER_MACHINE_TYPE=${BUILDER_MACHINE_TYPE:-e2-standard-4}
-BASE_IMAGE_FAMILY=${BASE_IMAGE_FAMILY:-ubuntu-2404-lts}
+BASE_IMAGE_FAMILY=${BASE_IMAGE_FAMILY:-ubuntu-2404-lts-amd64}
 BASE_IMAGE_PROJECT=${BASE_IMAGE_PROJECT:-ubuntu-os-cloud}
 
 IMAGE_FAMILY=${IMAGE_FAMILY:-dev-gold}
@@ -71,10 +71,25 @@ IMAGE_FAMILY=${IMAGE_FAMILY:-dev-gold}
 # SSH 配置（用于创建统一用户）
 SSH_USERNAME=${SSH_USERNAME:-dev}
 
+# Builder 可选配置（通过 metadata 传入 builder-setup.sh，未设置则交互询问）
+BUILDER_REGION=${BUILDER_REGION:-}
+BUILDER_REPO_URL=${BUILDER_REPO_URL:-https://github.com/William-Sang/cloud-devbox.git}
+BUILDER_PROXY=${BUILDER_PROXY:-}
+BUILDER_GIT_NAME=${BUILDER_GIT_NAME:-}
+BUILDER_GIT_EMAIL=${BUILDER_GIT_EMAIL:-}
+
 PROJECT_FLAGS=()
 if [[ -n "$GCP_PROJECT_ID" ]]; then
   PROJECT_FLAGS+=(--project "$GCP_PROJECT_ID")
 fi
+
+run_gcloud() {
+  if [[ ${#PROJECT_FLAGS[@]} -gt 0 ]]; then
+    gcloud "${PROJECT_FLAGS[@]}" "$@"
+  else
+    gcloud "$@"
+  fi
+}
 
 case "$CMD" in
   create-builder)
@@ -93,7 +108,6 @@ case "$CMD" in
     # 创建临时的初始化脚本
     # 该脚本会在实例启动时执行，从 metadata 中读取 builder-setup.sh
     TEMP_INIT_SCRIPT=$(mktemp)
-    trap 'rm -f "$TEMP_INIT_SCRIPT"' EXIT
     cat > "$TEMP_INIT_SCRIPT" <<'EOF'
 #!/bin/bash
 # 从 metadata 中提取 builder-setup.sh 并保存到用户主目录
@@ -140,12 +154,27 @@ EOF
     
     echo "[image] 正在创建实例并传入脚本..."
     
-    # 创建实例，通过 metadata 传入脚本和用户名
-    gcloud "${PROJECT_FLAGS[@]}" compute instances create "$BUILDER_INSTANCE_NAME" \
+    # 组装 metadata（包含可选配置，未设置的项由 builder-setup.sh 交互询问）
+    BUILDER_METADATA="builder-username=$SSH_USERNAME,builder-repo-url=$BUILDER_REPO_URL"
+    if [[ -n "$BUILDER_REGION" ]]; then
+      BUILDER_METADATA+=",builder-region=$BUILDER_REGION"
+    fi
+    if [[ -n "$BUILDER_PROXY" ]]; then
+      BUILDER_METADATA+=",builder-proxy=$BUILDER_PROXY"
+    fi
+    if [[ -n "$BUILDER_GIT_NAME" ]]; then
+      BUILDER_METADATA+=",builder-git-name=$BUILDER_GIT_NAME"
+    fi
+    if [[ -n "$BUILDER_GIT_EMAIL" ]]; then
+      BUILDER_METADATA+=",builder-git-email=$BUILDER_GIT_EMAIL"
+    fi
+
+    # 创建实例，通过 metadata 传入脚本和配置参数
+    run_gcloud compute instances create "$BUILDER_INSTANCE_NAME" \
       --zone "$GCP_ZONE" \
       --machine-type "$BUILDER_MACHINE_TYPE" \
       --image-family "$BASE_IMAGE_FAMILY" --image-project "$BASE_IMAGE_PROJECT" \
-      --metadata builder-username="$SSH_USERNAME" \
+      --metadata "$BUILDER_METADATA" \
       --metadata-from-file startup-script="$TEMP_INIT_SCRIPT",builder-script="$BUILDER_SETUP_SCRIPT"
     
     # 清理临时文件
@@ -185,7 +214,7 @@ EOF
     echo "[image] creating image from builder: $BUILDER_INSTANCE_NAME"
 
     # 检查 builder 实例状态（必须已停止）
-    BUILDER_STATUS=$(gcloud "${PROJECT_FLAGS[@]}" compute instances describe "$BUILDER_INSTANCE_NAME" \
+    BUILDER_STATUS=$(run_gcloud compute instances describe "$BUILDER_INSTANCE_NAME" \
       --zone "$GCP_ZONE" --format='get(status)' 2>/dev/null || echo "")
     if [[ -z "$BUILDER_STATUS" ]]; then
       echo "[image] ❌ builder 实例 '$BUILDER_INSTANCE_NAME' 不存在" >&2
@@ -199,7 +228,7 @@ EOF
     echo "[image] ✓ builder 实例已停止 (status=$BUILDER_STATUS)"
 
     # 解析构建机的启动磁盘名称
-    BOOT_DISK_URI=$(gcloud "${PROJECT_FLAGS[@]}" compute instances describe "$BUILDER_INSTANCE_NAME" --zone "$GCP_ZONE" --format='get(disks[0].source)')
+    BOOT_DISK_URI=$(run_gcloud compute instances describe "$BUILDER_INSTANCE_NAME" --zone "$GCP_ZONE" --format='get(disks[0].source)')
     if [[ -z "${BOOT_DISK_URI}" ]]; then
       echo "[image] cannot resolve builder boot disk. Ensure builder exists." >&2
       exit 1
@@ -208,7 +237,7 @@ EOF
     TIMESTAMP=$(date +%Y%m%d-%H%M%S)
     IMAGE_NAME="${IMAGE_FAMILY}-${TIMESTAMP}"
 
-    gcloud "${PROJECT_FLAGS[@]}" compute images create "$IMAGE_NAME" \
+    run_gcloud compute images create "$IMAGE_NAME" \
       --source-disk="$BUILDER_BOOT_DISK_NAME" \
       --source-disk-zone="$GCP_ZONE" \
       --family="$IMAGE_FAMILY"
@@ -217,7 +246,7 @@ EOF
 
   delete-builder)
     echo "[image] deleting builder: $BUILDER_INSTANCE_NAME"
-    gcloud "${PROJECT_FLAGS[@]}" compute instances delete "$BUILDER_INSTANCE_NAME" --zone "$GCP_ZONE" --quiet || true
+    run_gcloud compute instances delete "$BUILDER_INSTANCE_NAME" --zone "$GCP_ZONE" --quiet || true
     ;;
 
   *)

@@ -89,7 +89,7 @@ fi
 # 删除实例的函数
 delete_instances() {
   local deleted=false
-  
+
   if [[ -n "$TARGET_INSTANCE" ]]; then
     echo "[destroy] deleting instance: $TARGET_INSTANCE"
     if ! run_gcloud compute instances delete "$TARGET_INSTANCE" --zone "$GCP_ZONE" --quiet; then
@@ -100,7 +100,7 @@ delete_instances() {
   else
     echo "[destroy] no explicit instance specified, deleting labeled instances"
     INSTANCE_LIST=$(run_gcloud compute instances list \
-      --filter="labels.${LABEL_KEY}=${LABEL_VALUE} AND zone:${GCP_ZONE} AND status:(RUNNING PROVISIONING)" \
+      --filter="labels.${LABEL_KEY}=${LABEL_VALUE} AND zone:${GCP_ZONE} AND status:(RUNNING PROVISIONING STAGING SUSPENDED STOPPING)" \
       --format='get(name)')
 
     if [[ -z "${INSTANCE_LIST//[[:space:]]/}" ]]; then
@@ -117,12 +117,17 @@ delete_instances() {
       done <<< "$INSTANCE_LIST"
     fi
   fi
-  
-  echo "$deleted"
+
 }
 
 # 执行实例删除
 delete_instances
+
+# 清理 state 文件（实例已删除，避免下次误操作）
+STATE_FILE="$ROOT_DIR/.state/last_instance_name"
+if [[ -f "$STATE_FILE" ]]; then
+  rm -f "$STATE_FILE"
+fi
 
 # 如果指定了 --purge-boot，同时删除持久 boot disk
 if [[ "$PURGE_BOOT" == "true" ]]; then
@@ -133,8 +138,9 @@ if [[ "$PURGE_BOOT" == "true" ]]; then
     echo "[destroy] 正在删除 boot disk: $BOOT_DISK_NAME"
     if ! run_gcloud compute disks delete "$BOOT_DISK_NAME" --zone "$GCP_ZONE" --quiet; then
       echo "[destroy] ⚠ 删除 boot disk '$BOOT_DISK_NAME' 失败" >&2
+    else
+      echo "[destroy] ✓ boot disk '$BOOT_DISK_NAME' 已删除"
     fi
-    echo "[destroy] ✓ boot disk '$BOOT_DISK_NAME' 已删除"
   else
     echo "[destroy] boot disk '$BOOT_DISK_NAME' 不存在，跳过"
   fi

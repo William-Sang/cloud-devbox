@@ -99,6 +99,13 @@ if ! command -v gcloud >/dev/null 2>&1; then
   exit 1
 fi
 
+# 0.5) 检查同名实例是否已存在
+if run_gcloud compute instances describe "$INSTANCE_NAME" --zone "$GCP_ZONE" >/dev/null 2>&1; then
+  echo "[start] ❌ 实例 '$INSTANCE_NAME' 已存在。" >&2
+  echo "[start] 请先运行 bash scripts/destroy-dev.sh 或使用不同的 SPOT_INSTANCE_NAME。" >&2
+  exit 1
+fi
+
 # 1) 确认静态 IP 存在
 ADDR_DESCRIBE_ERR=""
 if ! ADDR_DESCRIBE_ERR="$(run_gcloud compute addresses describe "$ADDRESS_NAME" --region "$GCP_REGION" 2>&1 1>/dev/null)"; then
@@ -231,6 +238,13 @@ if id "${SSH_USERNAME}" &>/dev/null; then
   chown -R "${SSH_USERNAME}:${SSH_USERNAME}" "${MOUNT_POINT}"
   chmod 755 "${MOUNT_POINT}"
   echo "✓ ${MOUNT_POINT} 所有者已设置为 ${SSH_USERNAME}"
+
+  # 首次启动时生成 SSH 密钥（避免镜像中共享密钥）
+  SSH_KEY_FILE="/home/${SSH_USERNAME}/.ssh/id_ed25519"
+  if [[ ! -f "\${SSH_KEY_FILE}" ]]; then
+    sudo -u "${SSH_USERNAME}" bash -c "mkdir -p ~/.ssh && chmod 700 ~/.ssh && ssh-keygen -t ed25519 -C 'gcp-dev-machine' -f ~/.ssh/id_ed25519 -N ''"
+    echo "✓ SSH 密钥已为 ${SSH_USERNAME} 自动生成"
+  fi
 fi
 
 # 设置欢迎信息
@@ -383,4 +397,5 @@ ${IDENTITY_FILE_CONFIG}
 工作目录： ${MOUNT_POINT}
 ${BOOT_DISK_INFO}
 自动删除： ${MAX_RUN_DURATION} 后，动作为 ${TERMINATION_ACTION}
+查看启动日志： gcloud compute instances get-serial-port-output ${INSTANCE_NAME} --zone ${GCP_ZONE}
 MSG

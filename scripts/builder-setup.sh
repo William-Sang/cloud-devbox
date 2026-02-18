@@ -4,7 +4,7 @@
 #
 # 前置要求: 基础镜像需使用 Ubuntu（bootstrap/ 仅支持 Ubuntu）
 #   在 .env 或 build-image.sh 中配置:
-#     BASE_IMAGE_FAMILY=ubuntu-2404-lts
+#     BASE_IMAGE_FAMILY=ubuntu-2404-lts-amd64
 #     BASE_IMAGE_PROJECT=ubuntu-os-cloud
 #
 # 用法: sudo bash ~/builder-setup.sh
@@ -59,8 +59,71 @@ chmod 0440 "/etc/sudoers.d/$TARGET_USER"
 echo "✓ sudo 权限已配置（免密）"
 echo ""
 
-# ─── 克隆仓库并运行 bootstrap ──────────────────────────────────────────────────
-REPO_URL="https://github.com/William-Sang/cloud-devbox.git"
+# ─── GCE: 从 metadata 读取可配置参数 ─────────────────────────────────────────
+_meta() {
+  curl -sf -H "Metadata-Flavor: Google" \
+    "http://metadata.google.internal/computeMetadata/v1/instance/attributes/$1" || echo "${2:-}"
+}
+
+REPO_URL=$(_meta "builder-repo-url" "https://github.com/William-Sang/cloud-devbox.git")
+BUILDER_REGION=$(_meta "builder-region" "")
+BUILDER_PROXY=$(_meta "builder-proxy" "")
+GIT_USER_NAME=$(_meta "builder-git-name" "")
+GIT_USER_EMAIL=$(_meta "builder-git-email" "")
+
+# ─── 交互式配置（metadata 未设置时，终端下询问）─────────────────────────────
+if [[ -t 0 ]]; then
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "  配置选项（直接回车使用默认值）"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo ""
+
+  # 区域
+  if [[ -z "$BUILDER_REGION" ]]; then
+    echo "  选择区域:"
+    echo "    1) overseas — 海外（官方源，默认）"
+    echo "    2) cn       — 中国大陆（国内镜像加速）"
+    read -rp "  请选择 [1/2] (默认 1): " _region_choice
+    case "$_region_choice" in
+      2) BUILDER_REGION="cn" ;;
+      *) BUILDER_REGION="overseas" ;;
+    esac
+  fi
+  echo "  区域: $BUILDER_REGION"
+  echo ""
+
+  # 代理
+  if [[ -z "$BUILDER_PROXY" ]]; then
+    read -rp "  代理 URL（如 http://host:port，回车跳过）: " BUILDER_PROXY
+  fi
+  if [[ -n "$BUILDER_PROXY" ]]; then
+    echo "  代理: $BUILDER_PROXY"
+  else
+    echo "  代理: 无"
+  fi
+  echo ""
+
+  # Git 信息
+  if [[ -z "$GIT_USER_NAME" ]]; then
+    read -rp "  Git user.name（回车跳过）: " GIT_USER_NAME
+  fi
+  if [[ -z "$GIT_USER_EMAIL" && -n "$GIT_USER_NAME" ]]; then
+    read -rp "  Git user.email: " GIT_USER_EMAIL
+  fi
+  if [[ -n "$GIT_USER_NAME" ]]; then
+    echo "  Git: $GIT_USER_NAME <$GIT_USER_EMAIL>"
+  else
+    echo "  Git: 跳过（可稍后手动配置）"
+  fi
+
+  echo ""
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo ""
+fi
+
+# 确保区域有默认值
+BUILDER_REGION=${BUILDER_REGION:-overseas}
+
 REPO_DIR="/tmp/cloud-devbox"
 
 echo "[1/5] 准备 bootstrap 环境..."
@@ -75,19 +138,26 @@ echo ""
 
 echo "[2/5] 运行 bootstrap 安装开发环境..."
 # bootstrap 以目标用户身份运行（内部按需 sudo）
+BOOTSTRAP_ARGS=(--all --yes --non-interactive --region "$BUILDER_REGION")
+if [[ -n "$BUILDER_PROXY" ]]; then
+  BOOTSTRAP_ARGS+=(--proxy "$BUILDER_PROXY")
+fi
 sudo -u "$TARGET_USER" bash "$REPO_DIR/bootstrap/init-devbox.sh" apply \
-  --all --yes --non-interactive --region overseas
+  "${BOOTSTRAP_ARGS[@]}"
 echo ""
 
 # ─── GCE: 个性化配置 ──────────────────────────────────────────────────────────
 echo "[3/5] 配置 Git 用户信息和 Vim..."
 
-# Git 用户信息（shell-config 模块不覆盖已有值，这里主动设置）
-sudo -u "$TARGET_USER" bash -c '
-  git config --global user.name "willliam.sang"
-  git config --global user.email "sang.williams@gmail.com"
-'
-echo "✓ Git 用户信息已配置"
+# Git 用户信息（从 metadata 读取，未配置则跳过）
+if [[ -n "$GIT_USER_NAME" && -n "$GIT_USER_EMAIL" ]]; then
+  sudo -u "$TARGET_USER" git config --global user.name "$GIT_USER_NAME"
+  sudo -u "$TARGET_USER" git config --global user.email "$GIT_USER_EMAIL"
+  echo "✓ Git 用户信息已配置: $GIT_USER_NAME <$GIT_USER_EMAIL>"
+else
+  echo "⚠ Git 用户信息未配置（metadata 中未设置 builder-git-name/builder-git-email）"
+  echo "  可在镜像启动后手动配置: git config --global user.name/email"
+fi
 
 # Vim 配置 (amix/vimrc)
 sudo -u "$TARGET_USER" bash -c '
@@ -99,15 +169,12 @@ sudo -u "$TARGET_USER" bash -c '
 '
 echo ""
 
-# ─── GCE: SSH 密钥 + 工作目录 ─────────────────────────────────────────────────
-echo "[4/5] 配置 SSH 密钥和工作目录..."
+# ─── GCE: SSH 目录 + 工作目录 ──────────────────────────────────────────────────
+echo "[4/5] 配置工作目录..."
 
+# 仅准备 .ssh 目录，密钥将在 VM 首次启动时生成（避免烤入镜像共享密钥）
 sudo -u "$TARGET_USER" bash -c '
-  if [[ ! -f ~/.ssh/id_ed25519 ]]; then
-    mkdir -p ~/.ssh && chmod 700 ~/.ssh
-    ssh-keygen -t ed25519 -C "gcp-dev-machine" -f ~/.ssh/id_ed25519 -N ""
-    echo "✓ SSH 密钥已生成"
-  fi
+  mkdir -p ~/.ssh && chmod 700 ~/.ssh
 '
 
 mkdir -p /workspace
@@ -132,7 +199,7 @@ cat > /etc/motd <<EOF
   • AI 工具: Claude Code, OpenCode, Codex, Qoder, Gemini
 
 工作目录: /workspace (属于 $TARGET_USER)
-SSH 密钥: /home/$TARGET_USER/.ssh/id_ed25519.pub
+SSH 密钥: 首次启动时自动生成于 /home/$TARGET_USER/.ssh/id_ed25519
 
 常用命令:
   • fnm use 22 / fnm install --lts    Node.js 版本切换
@@ -217,11 +284,6 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 echo "配置用户: $TARGET_USER (sudo 免密)"
 echo ""
-if [[ -f "/home/$TARGET_USER/.ssh/id_ed25519.pub" ]]; then
-  echo "SSH 公钥:"
-  echo "  $(cat "/home/$TARGET_USER/.ssh/id_ed25519.pub")"
-  echo ""
-fi
 echo "下一步："
 echo "  1. 测试: docker run hello-world"
 echo "  2. 关机: sudo poweroff"
