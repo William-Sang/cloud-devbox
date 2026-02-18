@@ -18,6 +18,8 @@ install_proxy() {
   log_step "配置代理"
 
   # 未配置代理时，交互式询问
+  local _proxy_from_interactive=false
+  local _proxy_persist_bashrc=false
   if [[ -z "$PROXY_URL" ]]; then
     if [[ -t 0 ]]; then
       echo ""
@@ -32,6 +34,14 @@ install_proxy() {
           log_warn "代理地址格式无效，跳过代理配置。"
           return 0
         fi
+        _proxy_from_interactive=true
+        # 询问是否持久化到 .bashrc
+        local persist_choice
+        read -r -p "是否将代理写入 ~/.bashrc 以便永久生效? [Y/n]: " persist_choice
+        case "$persist_choice" in
+          [nN]*) _proxy_persist_bashrc=false ;;
+          *)     _proxy_persist_bashrc=true ;;
+        esac
       else
         log_info "未配置代理，跳过。"
         return 0
@@ -43,7 +53,15 @@ install_proxy() {
   fi
 
   # ── 1. 持久化到 .bashrc ──────────────────────────────────────────────────────
-  if config_is_true "proxy.persist_bashrc" 2>/dev/null; then
+  # 交互式输入：由用户选择；其他来源：看 config
+  local _should_persist=false
+  if [[ "$_proxy_from_interactive" == true ]]; then
+    _should_persist="$_proxy_persist_bashrc"
+  elif config_is_true "proxy.persist_bashrc" 2>/dev/null; then
+    _should_persist=true
+  fi
+
+  if [[ "$_should_persist" == true ]]; then
     add_to_bashrc "PROXY" \
       '# HTTP/SOCKS 代理' \
       "export HTTP_PROXY=\"${PROXY_URL}\"" \
